@@ -1,0 +1,67 @@
+# ==========================================
+# 1. ModelSim / QuestaSim (Simulation)
+# ==========================================
+# Thư viện biên dịch
+work/
+msim/
+transcript
+vsim.wlf
+*.log
+*.vstf
+*.db
+*.ucdb
+
+# File tạm của ModelSim
+_lock
+modelsim.ini
+
+# ==========================================
+# 2. Intel Quartus Prime (Synthesis)
+# ==========================================
+# Thư mục chứa kết quả tổng hợp và implement
+db/
+incremental_db/
+output_files/
+greybox_tmp/
+hc_output/
+hpath.txt
+*.bak
+*.orig
+*.rej
+
+# Các file báo cáo và logs của Quartus
+*.rpt
+*.summary
+*.done
+*.jdi
+*.pin
+*.qws
+*.sld
+*.smsg
+
+# Thư mục hệ thống Qsys/Platform Designer
+.qsys_edit/
+*.qsys.legacy
+
+# ==========================================
+# 3. Programming Files (Thường bỏ qua, nạp lại từ source)
+# ==========================================
+*.sof
+*.pof
+*.jic
+*.rbf
+
+# ==========================================
+# 4. OS & IDE rác
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ==========================================
+# 5. Data & Test Files
+# ==========================================
+# Nếu bạn muốn nạp file hex mới mỗi lần test, có thể ignore hoặc giữ lại tùy ý
+# program.hex

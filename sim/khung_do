@@ -1,0 +1,63 @@
+# =============================================================================
+# UNIVERSAL RISC-V RUN SCRIPT (BLANK TEMPLATE)
+# =============================================================================
+# NOTES FOR AI:
+# 1. Do NOT change directory variables (matched to user's environment).
+# 2. FILL the "COMPILE USER CODE" section with new modules when implementing.
+# 3. Always keep +define+UVM_NO_DPI and -voptargs="+acc".
+# =============================================================================
+
+# 1. SETUP PATHS (FIXED)
+set SRC_DIR   "../src"
+set VERIF_DIR "../verify"
+set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
+
+# 2. TEST CONFIG (UPDATE THIS PER TEST)
+set TB_TOP    "tb_top"
+set TEST_NAME "test_base" 
+
+puts "\[SCRIPT\] Setup: UVM at $UVM_HOME"
+
+# 3. CLEANUP
+puts "\[SCRIPT\] Cleaning workspace..."
+if {[file exists work]}       { file delete -force work }
+if {[file exists uvm]}        { file delete -force uvm }
+if {[file exists vsim.wlf]}   { file delete -force vsim.wlf }
+if {[file exists transcript]} { file delete -force transcript }
+
+vlib work; vmap work work
+vlib uvm;  vmap uvm uvm
+
+# 4. COMPILE UVM LIBRARY
+puts "\[SCRIPT\] Compiling UVM..."
+vlog -work uvm +incdir+$UVM_HOME/src +define+UVM_NO_DPI +acc \
+     $UVM_HOME/src/uvm_pkg.sv -timescale "1ns/1ps" -suppress 2181
+
+# 5. COMPILE USER CODE (FILL FILES HERE)
+puts "\[SCRIPT\] Compiling Design & Verify..."
+vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
+     +incdir+$UVM_HOME/src \
+     +incdir+$SRC_DIR/memory \
+     +incdir+$SRC_DIR/includes \
+     +incdir+$VERIF_DIR/UVM/common \
+     \
+     # --- [A] PACKAGES ---
+     # $SRC_DIR/memory/memory_pkg.sv \
+     \
+     # --- [B] RTL MODULES (Design) ---
+     # [INSERT RTL FILES HERE: PC_Gen.sv, LSU.sv, etc.] \
+     \
+     # --- [C] VERIFICATION (Interfaces & TB) ---
+     # [INSERT TB FILES HERE: tb_top.sv, interface.sv]
+
+# 6. SIMULATE
+puts "\[SCRIPT\] Simulating..."
+vsim -voptargs="+acc" -L uvm -L work \
+     +UVM_TESTNAME=$TEST_NAME \
+     +UVM_VERBOSITY=UVM_HIGH \
+     work.$TB_TOP
+
+# 7. WAVEFORM
+radix -hex
+# add wave -position insertpoint sim:/$TB_TOP/dut/*
+run -all

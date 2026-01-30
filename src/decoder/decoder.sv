@@ -1,5 +1,6 @@
+import riscv_32im_pkg::*;
 module decoder 
-import decoder_pkg::*;
+
 (
     input logic [31:0]        instr_i,
     output dec_out_t          ctrl_o,   
@@ -7,76 +8,17 @@ import decoder_pkg::*;
     output logic [4:0]       rd_addr_o,
     output logic [4:0]       rs1_addr_o,
     output logic [4:0]       rs2_addr_o
+    // Upstream (Nhận từ IF/ID Pipeline Reg)
+    input  logic        valid_i, 
+    output logic        ready_o,
+    
+    // Downstream (Gửi tới ID/EX Pipeline Reg)
+    output logic        valid_o,
+    input  logic        ready_i
 );
+    assign valid_o = valid_i;
+    assign ready_o = ready_i;
 // 1. INSTRUCTION SLICING (Internal Data Types)
-    // R-Type: Register-Register (ADD, SUB, SLL...)
-    typedef struct packed {
-        logic [6:0] funct7;
-        logic [4:0] rs2;
-        logic [4:0] rs1;
-        logic [2:0] funct3;
-        logic [4:0] rd;
-        logic [6:0] opcode;
-    } r_type_t;
-
-    // I-Type: Immediate (ADDI, SLTI, ANDI...)
-    typedef struct packed {
-        logic [11:0]    imm;
-        logic [4:0]     rs1;    
-        logic [2:0]     funct3;
-        logic [4:0]     rd;
-        logic [6:0]     opcode;
-    } i_type_t;
-
-    // S-Type: Store (SW, SH, SB)
-    typedef struct packed {
-        logic [6:0]     imm_11_5;
-        logic [4:0]     rs2;
-        logic [4:0]     rs1;
-        logic [2:0]     funct3;
-        logic [4:0]     imm_4_0;
-        logic [6:0]     opcode;
-    } s_type_t;
-
-    // B-Type: Branch (BEQ, BNE, BLT...)
-    typedef struct packed {
-        logic           imm_12;
-        logic [5:0]     imm_10_5;
-        logic [4:0]     rs2;
-        logic [4:0]     rs1;
-        logic [2:0]     funct3;
-        logic [3:0]     imm_4_1;
-        logic           imm_11;
-        logic [6:0]     opcode;
-    } b_type_t;
-
-    // U-Type: LUI, AUIPC
-    typedef struct packed {
-        logic [19:0]    imm_31_12;
-        logic [4:0]     rd;
-        logic [6:0]     opcode;
-    } u_type_t;
-
-    // J-Type: JAL
-    typedef struct packed {
-        logic           imm_20;
-        logic [9:0]     imm_10_1;
-        logic           imm_11;
-        logic [7:0]     imm_19_12;
-        logic [4:0]     rd;
-        logic [6:0]     opcode;
-    } j_type_t;
-    // UNION of all instruction types
-    typedef union packed {
-        r_type_t    r_type;
-        i_type_t    i_type;
-        s_type_t    s_type;
-        b_type_t    b_type;
-        u_type_t    u_type;
-        j_type_t    j_type;
-        logic [31:0] raw;
-    } instr_t;
-
     instr_t instr; 
     assign instr.raw = instr_i;
     

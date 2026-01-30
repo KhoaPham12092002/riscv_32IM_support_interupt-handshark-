@@ -1,135 +1,146 @@
 `timescale 1ns/1ps
-import M_types_pkg::*; 
+import riscv_32im_pkg::*; 
 
 module riscv_m_unit (
     input  logic         clk,
     input  logic         rst,
-    input  logic         valid,
-    input  M_req_t       m_req,
-    output logic [31:0]  result,
-    output logic         ready,
-    output logic         busy    
+
+    // --- Upstream Interface ---
+    input  logic         valid_i,
+    output logic         ready_o,
+    input  m_in_t        m_in,
+
+    // --- Downstream Interface ---
+    output logic         valid_o,
+    input  logic         ready_i,
+    output logic [31:0]  result_o
 );
 
     // ========================================================================
-    // 1. DECODE & SIGN LOGIC
+    // 1. SIGNALS & REGISTERS
     // ========================================================================
-    logic is_div_op, is_rem_op;
-    logic a_is_signed, b_is_signed;
-
-    assign is_div_op   = (m_req.op inside {M_DIV, M_DIVU, M_REM, M_REMU});
-    assign is_rem_op   = (m_req.op inside {M_REM, M_REMU});
-    assign a_is_signed = (m_req.op inside {M_MUL, M_MULH, M_MULHSU, M_DIV, M_REM});
-    assign b_is_signed = (m_req.op inside {M_MUL, M_MULH, M_DIV, M_REM});
-
     typedef enum logic [2:0] { IDLE, PREPARE, DIV_LOOP, FIX_SIGN, DONE } state_t;
     state_t state;
 
-    // ========================================================================
-    // 2. MULTIPLIER WITH D-FF (Handshaking & Safety)
-    // ========================================================================
-    logic [63:0] mul_res_reg;
-    logic        mul_ready_q;
-
-    always_ff @(posedge clk or posedge rst) begin
-        if (rst) begin
-            mul_res_reg <= '0;
-            mul_ready_q <= 1'b0;
-        end else begin
-            // Chỉ bắt đầu nhân khi đang ở IDLE và chưa bận phép nhân cũ
-            if (valid && !is_div_op && state == IDLE && !mul_ready_q) begin
-                // Phép nhân được thực hiện và chốt vào D-FF tại cạnh lên clock
-                mul_res_reg <= $signed(a_is_signed ? {m_req.a_i[31], m_req.a_i} : {1'b0, m_req.a_i}) * $signed(b_is_signed ? {m_req.b_i[31], m_req.b_i} : {1'b0, m_req.b_i});
-                mul_ready_q <= 1'b1;
-            end 
-            // Cơ chế bắt tay: Hạ ready khi Master hạ valid
-            else if (!valid) begin
-                mul_ready_q <= 1'b0;
-            end
-        end
-    end
-
-    // ========================================================================
-    // 3. DIVIDER FSM
-    // ========================================================================
-    logic [5:0]  count;
-    logic [63:0] rem_quot_reg;
+    // Registers
+    m_op_e       op_q;
+    logic [63:0] result_reg;
     logic [31:0] divisor_reg;
+    logic [5:0]  count;
     logic        sign_q, sign_r;
+    logic        div_by_zero_q; 
 
-    logic [31:0] adder_out;
-    logic        adder_cout;
-    
-    // Shared Subtractor logic
-    i_adder shared_adder (
-        .a({rem_quot_reg[62:32], rem_quot_reg[31]}), 
-        .b(divisor_reg), .carry_in(1'b1), .add_sub(1'b1), 
-        .sum_dif(adder_out), .C(adder_cout)
-    );
+    // Helper Signals
+    logic is_div_op, a_is_signed, b_is_signed;
+    logic [32:0] mul_op_a, mul_op_b;
+    logic [65:0] mul_res_full;
 
-    
+    // Biến tạm (Khai báo local trong module để tránh lỗi syntax)
+    logic [63:0] shift_temp;
+    logic [32:0] diff_temp;
 
+    // ========================================================================
+    // 2. COMBINATIONAL LOGIC
+    // ========================================================================
+    assign is_div_op   = (m_in.op inside {M_DIV, M_DIVU, M_REM, M_REMU});
+    assign a_is_signed = (m_in.op inside {M_MUL, M_MULH, M_MULHSU, M_DIV, M_REM});
+    assign b_is_signed = (m_in.op inside {M_MUL, M_MULH, M_DIV, M_REM});
+
+    assign mul_op_a = a_is_signed ? {m_in.a_i[31], m_in.a_i} : {1'b0, m_in.a_i};
+    assign mul_op_b = b_is_signed ? {m_in.b_i[31], m_in.b_i} : {1'b0, m_in.b_i};
+    assign mul_res_full = $signed(mul_op_a) * $signed(mul_op_b);
+
+    // ========================================================================
+    // 3. MAIN FSM
+    // ========================================================================
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
-            state <= IDLE; rem_quot_reg <= '0; divisor_reg <= '0;
-            count <= '0; sign_q <= '0; sign_r <= '0;
+            state <= IDLE;
+            result_reg <= '0; divisor_reg <= '0; count <= '0;
+            op_q <= M_MUL; sign_q <= 0; sign_r <= 0;
+            div_by_zero_q <= 0;
+            shift_temp = '0; diff_temp = '0;
         end else begin
             case (state)
                 IDLE: begin
-                    // Đợi valid và đảm bảo không vướng phép nhân vừa xong
-                    if (valid && is_div_op && !mul_ready_q) begin
-                        state  <= PREPARE;
-                        sign_q <= (a_is_signed && m_req.a_i[31]) ^ (b_is_signed && m_req.b_i[31]);
-                        sign_r <= (a_is_signed && m_req.a_i[31]);
+                    div_by_zero_q <= 0;
+                    if (valid_i) begin
+                        op_q <= m_in.op;
+                        if (is_div_op) begin
+                            state <= PREPARE;
+                            sign_q <= (a_is_signed && m_in.a_i[31]) ^ (b_is_signed && m_in.b_i[31]);
+                            sign_r <= (a_is_signed && m_in.a_i[31]);
+                            result_reg  <= {32'd0, (a_is_signed && m_in.a_i[31]) ? -m_in.a_i : m_in.a_i};
+                            divisor_reg <= (b_is_signed && m_in.b_i[31]) ? -m_in.b_i : m_in.b_i;
+                        end else begin
+                            result_reg <= mul_res_full[63:0];
+                            state      <= DONE;
+                        end
                     end
                 end
 
                 PREPARE: begin
-                    if (m_req.b_i == 0) begin // Corner Case: Div by Zero
-                        rem_quot_reg <= {m_req.a_i, 32'hFFFFFFFF};
-                        state <= DONE;
-                    end else if (m_req.a_i == 32'h80000000 && m_req.b_i == 32'hFFFFFFFF && a_is_signed) begin
-                        rem_quot_reg <= {32'd0, 32'h80000000};
-                        state <= DONE;
+                    if (divisor_reg == 0) begin
+                        result_reg    <= {result_reg[31:0], 32'hFFFFFFFF};
+                        div_by_zero_q <= 1'b1;
+                        state         <= FIX_SIGN; 
                     end else begin
-                        rem_quot_reg <= {32'd0, (a_is_signed && m_req.a_i[31]) ? -m_req.a_i : m_req.a_i};
-                        divisor_reg  <= (b_is_signed && m_req.b_i[31]) ? -m_req.b_i : m_req.b_i;
-                        count <= 32; state <= DIV_LOOP;
+                        count <= 32;
+                        state <= DIV_LOOP;
                     end
                 end
 
                 DIV_LOOP: begin
-                    if (count > 0) begin
-                        if (adder_cout) rem_quot_reg <= {adder_out, rem_quot_reg[30:0], 1'b1};
-                        else            rem_quot_reg <= {rem_quot_reg[62:0], 1'b0};
-                        count <= count - 1;
-                    end else state <= FIX_SIGN;
+                    // Logic chia Restoring (Blocking assignments để giả lập logic tức thời)
+                    shift_temp = {result_reg[62:0], 1'b0};
+                    diff_temp  = {1'b0, shift_temp[63:32]} - {1'b0, divisor_reg};
+                    
+                    if (diff_temp[32] == 0) begin 
+                        shift_temp[63:32] = diff_temp[31:0];
+                        shift_temp[0]     = 1'b1;
+                    end 
+                    
+                    result_reg <= shift_temp;
+                    if (count == 1) state <= FIX_SIGN;
+                    else            count <= count - 1;
                 end
 
                 FIX_SIGN: begin
-                    rem_quot_reg <= { (sign_r ? -rem_quot_reg[63:32] : rem_quot_reg[63:32]),
-                                      (sign_q ? -rem_quot_reg[31:0]  : rem_quot_reg[31:0]) };
-                    state <= DONE;
+                    logic [31:0] q_final, r_final;
+                    q_final = result_reg[31:0];
+                    r_final = result_reg[63:32];
+
+                    if (sign_q && !div_by_zero_q) q_final = -q_final;
+                    if (sign_r) r_final = -r_final;
+
+                    result_reg <= {r_final, q_final};
+                    state      <= DONE;
                 end
 
-                DONE: if (!valid) state <= IDLE;
+                DONE: begin
+                    if (ready_i) state <= IDLE;
+                end
             endcase
         end
     end
 
-    // Busy bao gồm trạng thái FSM đang chạy hoặc phép nhân đang giữ Ready
-    assign busy = (state != IDLE) || mul_ready_q;
+    // ========================================================================
+    // 4. OUTPUT LOGIC
+    // ========================================================================
+    assign valid_o = (state == DONE);
+    assign ready_o = (state == IDLE);
 
-    // ========================================================================
-    // 4. FINAL OUTPUT MUX
-    // ========================================================================
     always_comb begin
-        if (is_div_op) begin
-            ready  = (state == DONE);
-            result = is_rem_op ? rem_quot_reg[63:32] : rem_quot_reg[31:0];
-        end else begin
-            ready  = mul_ready_q;
-            result = (m_req.op == M_MUL) ? mul_res_reg[31:0] : mul_res_reg[63:32];
+        result_o = '0;
+        if (state == DONE) begin
+            case (op_q)
+                M_MUL:    result_o = result_reg[31:0];
+                M_MULH, M_MULHSU, M_MULHU: result_o = result_reg[63:32];
+                M_DIV, M_DIVU: result_o = result_reg[31:0];
+                M_REM, M_REMU: result_o = result_reg[63:32];
+                default:  result_o = '0;
+            endcase
         end
     end
+
 endmodule

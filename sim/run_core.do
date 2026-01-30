@@ -19,7 +19,6 @@ puts "\[SCRIPT\] Cleaning workspace..."
 if {[file exists work]}       { file delete -force work }
 if {[file exists uvm]}        { file delete -force uvm }
 if {[file exists vsim.wlf]}   { file delete -force vsim.wlf }
-if {[file exists transcript]} { file delete -force transcript }
 
 vlib work; vmap work work
 vlib uvm;  vmap uvm uvm
@@ -35,34 +34,18 @@ vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
      +incdir+$UVM_HOME/src \
      +incdir+$SRC_DIR/includes \
      +incdir+$PKG_DIR \
-     \
-     # --- [A] PACKAGES (MUST BE FIRST) ---
      $PKG_DIR/riscv_32im_pkg.sv \
      $SRC_DIR/decoder/riscv_instr.sv \
-     \
-     # --- [B] RTL MODULES (Design) ---
-     # Support Modules
      $SRC_DIR/core/pipeline_reg.sv \
-     
-     # EX Stage
+     $SRC_DIR/alu/sub_module.sv\
      $SRC_DIR/alu/alu.sv \
      $SRC_DIR/alu/riscv_m_unit.sv \
-     
-     # IF Stage
      $SRC_DIR/core/pc_gen.sv \
-     
-     # ID Stage
      $SRC_DIR/memory/register.sv \
      $SRC_DIR/decoder/decoder.sv \
-     
-     # MEM Stage
      $SRC_DIR/core/lsu.sv \
-     
-     # TOP CORE
      $SRC_DIR/core/riscv_core.sv \
-     \
-     # --- [C] VERIFICATION (Interfaces & TB) ---
-     $VERIF_DIR/core/tb_core_risc.sv
+     $VERIF_DIR/core/tb_core_riscv.sv
 
 # 6. SIMULATE
 puts "\[SCRIPT\] Simulating..."
@@ -86,7 +69,7 @@ add wave -noupdate -group {DMEM Handshake} /tb_top/vif/dmem_*
 add wave -noupdate -divider {CORE INTERNAL}
 add wave -noupdate -group {PC Path} /tb_top/dut/u_pc_gen/*
 add wave -noupdate -group {Pipeline Regs} /tb_top/dut/u_if_id_reg/data_o /tb_top/dut/u_id_ex_reg/data_o
-add wave -noupdate -group {Register File} /tb_top/dut/u_reg_file/regs
+add wave -noupdate -group {Register File} /tb_top/dut/u_reg_file/rf
 
 # Run simulation
 run -all

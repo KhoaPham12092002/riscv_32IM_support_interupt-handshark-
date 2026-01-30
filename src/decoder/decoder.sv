@@ -1,4 +1,6 @@
 import riscv_32im_pkg::*;
+import riscv_instr::*;
+
 module decoder 
 
 (

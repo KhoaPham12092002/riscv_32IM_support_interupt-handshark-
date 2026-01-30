@@ -1,5 +1,6 @@
 import riscv_32im_pkg::*;
-module pipeline_reg (
+module pipeline_reg #(parameter type T_DATA = logic [31:0] )
+(
     input  logic    clk_i,
     input  logic    rst_i,
 

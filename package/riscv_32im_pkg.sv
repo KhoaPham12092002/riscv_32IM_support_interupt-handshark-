@@ -6,7 +6,6 @@ package riscv_32im_pkg;
     localparam int IMEM_SIZE_BYTES = 4096;  // 4KB
     localparam int DMEM_SIZE_BYTES = 4096;  // 4KB
     parameter logic [31:0] BOOT_ADDR = 32'h0000_0000; // address boot PC
-    parameter type T_DATA = logic [31:0] // Dùng Parameter type của reg pipeline_reg
 
 
 
@@ -276,6 +275,44 @@ package riscv_32im_pkg;
         logic [31:0]  b_i; //sr2
         m_op_e        op;  // opcode
     } m_in_t; // M-type request
+    // INTERNAL PIPELINE DATA STRUCTURES (Gói tin chuyển giữa các tầng)
+        // 1. IF -> ID
+        typedef struct packed {
+        logic [31:0] pc;
+        logic [31:0] instr;
+        } if_id_t;
+
+        // 2. ID -> EX
+        typedef struct packed {
+            logic [31:0] pc;
+            dec_out_t    ctrl;      // Gói điều khiển từ Decoder
+            logic [31:0] rs1_data;
+            logic [31:0] rs2_data;
+            logic [31:0] imm;
+            logic [4:0]  rd_addr;
+            logic [4:0]  rs1_addr;
+            logic [4:0]  rs2_addr;
+        } id_ex_t;
+
+        // 3. EX -> MEM
+        typedef struct packed {
+            dec_out_t    ctrl;
+            logic [31:0] alu_result;
+            logic [31:0] m_result;
+            logic [31:0] store_data; // rs2_data cũ
+            logic [31:0] pc_plus4;
+            logic [4:0]  rd_addr;
+        } ex_mem_t;
+
+        // 4. MEM -> WB
+        typedef struct packed {
+            dec_out_t    ctrl;
+            logic [31:0] alu_result;
+            logic [31:0] m_result;
+            logic [31:0] load_data;
+            logic [31:0] pc_plus4;
+            logic [4:0]  rd_addr;
+        } mem_wb_t;
 // 5. RESET VALUES
     localparam alu_req_t ALU_REQ_RST = '{op: ALU_ADD, op_a_sel: OP_A_RS1, op_b_sel: OP_B_RS2};
     localparam m_req_t   M_REQ_RST   = '{op: M_MUL, valid: 1'b0};

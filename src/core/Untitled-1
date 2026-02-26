@@ -220,7 +220,7 @@ module riscv_core (
     );
 
     csr u_csr_unit(
-        .clk_i(clk_i), .rst_i(rst_i),
+        .clk(clk_i), .rst(rst_i),
         .csr_req_i(csr_req_final), .csr_rdata_o(csr_rdata),
         .trap_valid_i(trap_triggered), .trap_cause_i(trap_cause),
         .trap_pc_i(id_ex_out.pc), .trap_val_i(trap_val),

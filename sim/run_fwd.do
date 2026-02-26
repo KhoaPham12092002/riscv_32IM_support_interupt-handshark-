@@ -12,9 +12,9 @@ set SRC_DIR   "../src"
 set VERIF_DIR "../verify/UVM/core"
 set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
 
-# 2. TEST CONFIG (UPDATED FOR LSU)
+# 2. TEST CONFIG 
 set TB_TOP    "tb_top"
-set TEST_NAME "lsu_test"
+set TEST_NAME "fwd_test"
 
 puts "\[SCRIPT\] Setup: UVM at $UVM_HOME"
 
@@ -41,9 +41,9 @@ vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
      +incdir+$SRC_DIR/core \
      +incdir+$SRC_DIR/includes \
      \
-     $SRC_DIR/core/lsu.sv \
+     $SRC_DIR/core/forwarding_unit.sv \
      \
-     $VERIF_DIR/tb_lsu.sv
+     $VERIF_DIR/tb_fwd.sv
 
 # 6. SIMULATE
 puts "\[SCRIPT\] Simulating..."

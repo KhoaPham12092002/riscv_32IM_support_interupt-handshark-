@@ -7,7 +7,7 @@ module register (
     // (Write Port) - From Write Back (WB)
     input  logic        w_ena_i,       
     input  logic [4:0]  w_addr_i,   
-    input  logic [31:0] w_data_i_i,      
+    input  logic [31:0] w_data_i,      
 
     // (Read Ports) - Output data immediately to Execute (EX)
     input  logic [4:0]  r1_addr_i,  

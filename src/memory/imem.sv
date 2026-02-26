@@ -1,7 +1,7 @@
 import riscv_32im_pkg::*;
 
 module imem #(
-    parameter string HEX_FILE = "program.hex",
+    parameter string HEX_FILE = "new_code.hex",
     parameter int    MEM_SIZE = riscv_32im_pkg::IMEM_SIZE_BYTES
 ) (
     input  logic        clk_i,
@@ -45,7 +45,7 @@ module imem #(
     // --- Initial Load ---
     initial begin
         for (int i = 0; i < WORD_COUNT; i++) mem_array[i] = 32'h0;
-        if (HEX_FILE != "") $readmemh(HEX_FILE, mem_array);
+       if (HEX_FILE != "") $readmemh(HEX_FILE, mem_array);
     end
     // --- Handshark Interface Logic ---
     // IMEM chỉ sẵn sàng nhận địa chỉ mới khi tầng sau (Pipeline) không bị tắc.

@@ -62,16 +62,14 @@ module pc_gen (
     // ========================================================================
     always_ff @(posedge clk_i or posedge rst_i) begin
         if (rst_i) begin
-            pc_q <= BOOT_ADDR; // Load địa chỉ khởi động
+            pc_q <= 32'h0000_0000; // Hoặc BOOT_ADDR
         end else begin
-            // HANDSHAKE LOGIC:
-            // Chỉ cập nhật PC khi hạ nguồn (Downstream) sẵn sàng.
-            // Lưu ý quan trọng: Khi có Trap hoặc Branch, Controller sẽ phải 
-            // đảm bảo ready_i = 1 (Flush pipeline) để PC cập nhật ngay lập tức.
-            if (ready_i) begin
+            // ƯU TIÊN TUYỆT ĐỐI: Nếu có lệnh nhảy (branch_taken), 
+            // bắt buộc cập nhật PC ngay lập tức, bỏ qua mọi lý do trì hoãn (ready_i).
+            // Nếu không nhảy, thì mới tuân thủ luật Handshake (ready_i).
+            if (branch_taken_i || ready_i) begin 
                 pc_q <= pc_next;
             end
-            // Ngược lại (ready_i = 0): Giữ nguyên giá trị cũ (Stall)
         end
     end
 

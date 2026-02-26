@@ -27,7 +27,6 @@ package riscv_32im_pkg;
     localparam logic [31:0] MAP_SDRAM_MASK = 32'hF000_0000;
 
 // 2. ENUMERATIONS (DEFINITIONS)
-    
     // --- ALU Operations ---
     typedef enum logic [3:0] {
         ALU_ADD  = 4'b0000,
@@ -42,6 +41,14 @@ package riscv_32im_pkg;
         ALU_AND  = 4'b1001,
         ALU_B    = 4'b1111  // Pass Operand B (LUI)
     } alu_op_e;
+    
+    // --- CSR Operation ---
+         typedef enum logic [1:0] {
+            CSR_N  = 2'b00, // No Operation
+            CSR_RW = 2'b01, // Atomic Read/Write (Ghi đè)
+            CSR_RS = 2'b10, // Atomic Read/Set Bit (Bật bit)
+            CSR_RC = 2'b11  // Atomic Read/Clear Bit (Tắt bit)
+        } csr_op_e;
 
     // --- M-Extension Operations (Mul/Div) ---
     typedef enum logic [2:0] {
@@ -240,9 +247,11 @@ package riscv_32im_pkg;
 
     // CSR Request
     typedef struct packed {
-        logic       valid;
-        logic       we; // Write enable to CSR
-        logic [11:0] addr;
+        logic        valid;   // yêu cầu truy cập CSR 
+        csr_op_e     op;      // 
+        logic [11:0] addr;    // Địa chỉ CSR
+        logic [31:0] wdata;   // Dữ liệu cần ghi (Lấy từ RS1 hoặc Imm)
+        logic        is_imm;  // 1 Immediate (CSRRWI...), 0 = Register (CSRRW...)
     } csr_req_t;
 
     // --- CONTROL BUS (Decoder Output) ---
@@ -259,6 +268,11 @@ package riscv_32im_pkg;
         wb_sel_e    wb_sel;
         // Exception Handling
         logic       illegal_instr;
+        // tín hiệu cho scr 
+        logic        is_mret;       // 1 = Lệnh MRET
+        logic        is_ecall;      // 1 = Lệnh ECALL
+        logic        is_ebreak;     // 1 = Lệnh EBREAK
+        //
     } dec_out_t;
 
 // 4. TYPE INPUT FOR MODULE
@@ -299,6 +313,7 @@ package riscv_32im_pkg;
             dec_out_t    ctrl;
             logic [31:0] alu_result;
             logic [31:0] m_result;
+            logic [31:0] csr_data;
             logic [31:0] store_data; // rs2_data cũ
             logic [31:0] pc_plus4;
             logic [4:0]  rd_addr;
@@ -312,14 +327,14 @@ package riscv_32im_pkg;
             logic [31:0] load_data;
             logic [31:0] pc_plus4;
             logic [4:0]  rd_addr;
+            logic [31:0]   csr_data;
         } mem_wb_t;
 // 5. RESET VALUES
     localparam alu_req_t ALU_REQ_RST = '{op: ALU_ADD, op_a_sel: OP_A_RS1, op_b_sel: OP_B_RS2};
     localparam m_req_t   M_REQ_RST   = '{op: M_MUL, valid: 1'b0};
     localparam lsu_req_t LSU_REQ_RST = '{we: 1'b0, re: 1'b0, width: MEM_BYTE, is_unsigned: 1'b0};
     localparam br_req_t  BR_REQ_RST  = '{is_branch: 1'b0, is_jump: 1'b0, op: BR_BEQ};
-    localparam csr_req_t CSR_REQ_RST = '{valid: 1'b0, we: 1'b0, addr: 12'b0};
-
+    localparam csr_req_t CSR_REQ_RST = '{valid: 1'b0, op: CSR_N, addr: 12'b0, wdata: 32'b0, is_imm: 1'b0};
 // 6. HELPER FUNCTIONS
 
     function automatic dev_sel_t decode_address(input logic [31:0] addr);
@@ -329,5 +344,29 @@ package riscv_32im_pkg;
         else if ((addr & MAP_SDRAM_MASK) == MAP_SDRAM_BASE) return DEV_SDRAM;
         else                                                return DEV_NONE;
     endfunction
+// 7. CSR 
+    // BỔ SUNG: EXCEPTION CAUSE CODES (Mã lỗi cho mcause)
+        localparam logic [3:0] EXC_U_SOFT_IRQ      = 4'd0;
+        localparam logic [3:0] EXC_S_SOFT_IRQ      = 4'd1;
+        localparam logic [3:0] EXC_M_SOFT_IRQ      = 4'd3;
+        localparam logic [3:0] EXC_U_TIMER_IRQ     = 4'd4;
+        localparam logic [3:0] EXC_S_TIMER_IRQ     = 4'd5;
+        localparam logic [3:0] EXC_M_TIMER_IRQ     = 4'd7;
+        localparam logic [3:0] EXC_U_EXT_IRQ       = 4'd8;
+        localparam logic [3:0] EXC_S_EXT_IRQ       = 4'd9;
+        localparam logic [3:0] EXC_M_EXT_IRQ       = 4'd11;
 
+        // Synchronous Exceptions (Bit 31 = 0)
+        localparam logic [3:0] EXC_INSTR_ALIGN     = 4'd0;  // Lệch địa chỉ lệnh
+        localparam logic [3:0] EXC_INSTR_FAULT     = 4'd1;  // Lỗi truy cập lệnh
+        localparam logic [3:0] EXC_ILLEGAL_INSTR   = 4'd2;  // Lệnh không hợp lệ (QUAN TRỌNG)
+        localparam logic [3:0] EXC_BREAKPOINT      = 4'd3;  // EBREAK
+        localparam logic [3:0] EXC_LOAD_ALIGN      = 4'd4;  // Lệch địa chỉ tải dữ liệu
+        localparam logic [3:0] EXC_LOAD_FAULT      = 4'd5;  // Lỗi truy cập tải dữ liệu
+        localparam logic [3:0] EXC_STORE_ALIGN     = 4'd6;  // Lệch địa chỉ ghi
+        localparam logic [3:0] EXC_STORE_FAULT     = 4'd7;  // Lỗi truy cập ghi
+        localparam logic [3:0] EXC_ECALL_U         = 4'd8;  // User ECALL
+        localparam logic [3:0] EXC_ECALL_M         = 4'd11; // Machine ECALL (QUAN TRỌNG)
+        
+   
 endpackage

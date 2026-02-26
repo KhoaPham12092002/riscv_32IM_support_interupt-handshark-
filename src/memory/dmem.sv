@@ -77,10 +77,10 @@ module dmem #(
     end
     assign valid_o = valid_q;
 
-    // --- Initial Load ---
+    /*/ --- Initial Load ---
     initial begin
         for (int i = 0; i < WORD_COUNT; i++) mem_array[i] = 32'h0;
-        if (HEX_FILE != "") $readmemh(HEX_FILE, mem_array);
+      //  if (HEX_FILE != "") $readmemh(HEX_FILE, mem_array);
     end
-  
+  */
 endmodule

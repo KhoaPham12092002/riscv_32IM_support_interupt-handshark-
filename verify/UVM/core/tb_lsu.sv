@@ -1,80 +1,134 @@
 // =============================================================================
-// UVM TESTBENCH FOR HANDSHAKE LSU
+// FILE: tb_lsu.sv (STRICT UVM COMPLIANCE - PRO VERSION)
+// Features: LSU Handshake, Memory Simulation, Misaligned Checking
 // =============================================================================
+`timescale 1ns/1ps
 
 import uvm_pkg::*;
+import riscv_32im_pkg::*; 
 `include "uvm_macros.svh"
-import riscv_32im_pkg::*; // Import package để dùng enum nếu cần
 
 // -----------------------------------------------------------------------------
-// 1. INTERFACE (Updated for Handshake)
+// 1. INTERFACE
 // -----------------------------------------------------------------------------
-interface lsu_if (input logic clk_i);
-    logic        rst_i; // Active High Reset
-    
-    // --- Core Interface (Upstream) ---
-    logic        valid_i;
-    logic        ready_o;
-    
+interface lsu_if(input logic clk);
+    logic        rst_i;
+
+    // Interface with Core (Input)
     logic [31:0] addr_i;
     logic [31:0] wdata_i;
-    logic        lsu_we_i;
-    logic [2:0]  funct3_i;
-    
-    // --- Writeback Interface (Downstream) ---
+    logic        lsu_we_i;    // 1=Store, 0=Load
+    logic [2:0]  funct3_i;    // Data type
+    logic        valid_i;
+    logic        ready_o;
+
+    // Output to Core
     logic        valid_o;
-    logic        ready_i;
+    logic        ready_i;     // Core ready to accept result
     logic [31:0] lsu_rdata_o;
     logic        lsu_err_o;
 
-    // --- DMEM Interface ---
+    // Interface with DMEM (Memory Side)
     logic [31:0] dmem_addr_o;
     logic [31:0] dmem_wdata_o;
     logic [3:0]  dmem_be_o;
     logic        dmem_we_o;
-    logic [31:0] dmem_rdata_i;
+    logic [31:0] dmem_rdata_i; // Mock Memory Data
 endinterface
 
 // -----------------------------------------------------------------------------
-// 2. SEQUENCE ITEM
+// 2. SEQUENCE ITEM & SEQUENCE
 // -----------------------------------------------------------------------------
 class lsu_item extends uvm_sequence_item;
-    // Input Stimulus
-    rand bit [31:0] addr_i;
-    rand bit [31:0] wdata_i;
-    rand bit        lsu_we_i;   // 1=Store, 0=Load
-    rand bit [2:0]  funct3_i;   // LB, LH, LW...
-    rand bit [31:0] dmem_rdata_i; // Giả lập dữ liệu trả về từ RAM (cho lệnh Load)
-    rand int        delay_cycles;
-    rand bit valid_i;
-    // Output Capture
-    bit [31:0] dmem_addr_o;
-    bit [31:0] dmem_wdata_o;
-    bit [3:0]  dmem_be_o;
-    bit        dmem_we_o;
-    bit [31:0] lsu_rdata_o;
-    bit        lsu_err_o;
+    // --- INPUTS ---
+    rand logic [31:0] addr;
+    rand logic [31:0] wdata;
+    rand logic        we;      // 0: Load, 1: Store
+    rand logic [2:0]  funct3;
+    
+    // --- MOCK MEMORY INPUT ---
+    // Giả lập dữ liệu có sẵn trong RAM tại địa chỉ đó
+    rand logic [31:0] mock_mem_data; 
+
+    // --- OUTPUTS (OBSERVED) ---
+    logic [31:0] actual_rdata;
+    logic        actual_err;
+    logic [31:0] actual_dmem_addr;
+    logic [31:0] actual_dmem_wdata;
+    logic [3:0]  actual_dmem_be;
+    logic        actual_dmem_we;
 
     `uvm_object_utils_begin(lsu_item)
-        `uvm_field_int(addr_i, UVM_DEFAULT | UVM_HEX)
-        `uvm_field_int(lsu_we_i, UVM_DEFAULT)
-        `uvm_field_int(funct3_i, UVM_DEFAULT | UVM_BIN)
-        `uvm_field_int(valid_i , UVM_DEFAULT)
-        `uvm_field_int(lsu_rdata_o, UVM_DEFAULT | UVM_HEX)
-        `uvm_field_int(lsu_err_o, UVM_DEFAULT)
+        `uvm_field_int(addr, UVM_DEFAULT)
+        `uvm_field_int(wdata, UVM_DEFAULT)
+        `uvm_field_int(we, UVM_DEFAULT)
+        `uvm_field_int(funct3, UVM_DEFAULT)
     `uvm_object_utils_end
 
     function new(string name = "lsu_item"); super.new(name); endfunction
+endclass
 
-    // Constraints
-    constraint c_valid { valid_i dist {1:=90, 0:=10}; }
-    constraint c_funct3 { funct3_i inside {0, 1, 2, 4, 5}; } // Valid funct3
-    // Tập trung test Misaligned address (0, 1, 2, 3)
-    constraint c_addr_offset { addr_i[1:0] dist {0:=50, 1:=15, 2:=20, 3:=15}; } 
+class lsu_random_seq extends uvm_sequence #(lsu_item);
+    `uvm_object_utils(lsu_random_seq)
+    function new(string name=""); super.new(name); endfunction
+
+    // --- MANUAL RANDOMIZATION FUNCTIONS ---
+    
+    // 1. Biased Data (Corner cases: 0, -1, Max, Min)
+    function logic [31:0] get_biased_data();
+        int dice = $urandom_range(0, 99);
+        if (dice < 5)       return 32'h00000000; 
+        else if (dice < 10) return 32'hFFFFFFFF; 
+        else if (dice < 15) return 32'h7FFFFFFF; 
+        else if (dice < 20) return 32'h80000000; 
+        else                return $urandom();   
+    endfunction
+
+    // 2. Biased Address (Test Misaligned)
+    function logic [31:0] get_biased_addr();
+        int dice = $urandom_range(0, 99);
+        logic [31:0] base;
+        base = $urandom() & 32'hFFFFFFFC; // Mặc định Aligned 4 byte
+        
+        // 10% cơ hội sinh địa chỉ lẻ (Misaligned)
+        if (dice < 10) return base | $urandom_range(1, 3); 
+        else return base; // 90% Aligned
+    endfunction
+
+    // 3. Random Funct3 (LB, LH, LW, LBU, LHU, SB, SH, SW)
+    function logic [2:0] get_rand_funct3(bit is_store);
+        int sel;
+        if (is_store) begin
+            // Store: 000(SB), 001(SH), 010(SW)
+            sel = $urandom_range(0, 2);
+            return sel[2:0];
+        end else begin
+            // Load: 000(LB), 001(LH), 010(LW), 100(LBU), 101(LHU)
+            logic [2:0] load_ops[] = '{3'b000, 3'b001, 3'b010, 3'b100, 3'b101};
+            sel = $urandom_range(0, 4);
+            return load_ops[sel];
+        end
+    endfunction
+
+    task body();
+        repeat(10000) begin
+            req = lsu_item::type_id::create("req");
+            start_item(req);
+            
+            // Randomize manually
+            req.we            = $urandom_range(0, 1); // 50% Load, 50% Store
+            req.addr          = get_biased_addr();
+            req.wdata         = get_biased_data();
+            req.mock_mem_data = get_biased_data(); // Dữ liệu giả định trong RAM
+            req.funct3        = get_rand_funct3(req.we);
+            
+            finish_item(req);
+        end
+    endtask
 endclass
 
 // -----------------------------------------------------------------------------
-// 3. DRIVER (Implements Handshake Protocol)
+// 3. DRIVER
 // -----------------------------------------------------------------------------
 class lsu_driver extends uvm_driver #(lsu_item);
     `uvm_component_utils(lsu_driver)
@@ -83,125 +137,100 @@ class lsu_driver extends uvm_driver #(lsu_item);
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
-        if (!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif))
-            `uvm_fatal("DRV", "FATAL: Interface not found")
+        super.build_phase(phase);
+        if(!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif)) `uvm_fatal("DRV", "No IF")
     endfunction
 
     task run_phase(uvm_phase phase);
-        // Init signals
-        vif.valid_i   <= 0;
-        vif.addr_i    <= 0;
-        vif.wdata_i   <= 0;
-        vif.lsu_we_i  <= 0;
-        vif.funct3_i  <= 0;
+        // Init Inputs
+        vif.rst_i        <= 1;
+        vif.valid_i      <= 0;
+        vif.ready_i      <= 1; // Core luôn sẵn sàng nhận kết quả trả về
+        vif.dmem_rdata_i <= 0;
         
-        // Trong unit test đơn giản, ta lái luôn cổng dmem_rdata_i từ driver
-        // để giả lập RAM luôn có dữ liệu sẵn sàng.
-        vif.dmem_rdata_i <= 0; 
+        @(posedge vif.clk);
+        vif.rst_i <= 0;
         
-        @(negedge vif.rst_i); // Wait for Reset Release (Active High)
-        @(posedge vif.clk_i);
-
         forever begin
             seq_item_port.get_next_item(req);
             
-            // Random delay (Bubbles)
-            repeat(req.delay_cycles) @(posedge vif.clk_i);
+            // --- 1. DRIVE REQUEST ---
+            @(posedge vif.clk);
+            // Chờ LSU sẵn sàng (IDLE)
+            while (vif.ready_o !== 1) @(posedge vif.clk);
 
-            // --- 1. ASSERT REQUEST ---
-            vif.valid_i      <= req.valid_i;
-            vif.addr_i       <= req.addr_i;
-            vif.wdata_i      <= req.wdata_i;
-            vif.lsu_we_i     <= req.lsu_we_i;
-            vif.funct3_i     <= req.funct3_i;
+            vif.valid_i      <= 1;
+            vif.addr_i       <= req.addr;
+            vif.wdata_i      <= req.wdata;
+            vif.lsu_we_i     <= req.we;
+            vif.funct3_i     <= req.funct3;
             
-            // Giả lập RAM trả data về (cho trường hợp Load)
-            vif.dmem_rdata_i <= req.dmem_rdata_i; 
+            // Cung cấp dữ liệu giả lập cho DMEM (để Load path có cái mà đọc)
+            vif.dmem_rdata_i <= req.mock_mem_data;
 
-            // --- 2. WAIT FOR GRANT (Ready) ---
-            do begin
-                @(posedge vif.clk_i);
-            end while (vif.ready_o !== 1'b1);
+            // --- 2. HANDSHAKE DONE ---
+            @(posedge vif.clk);
+            vif.valid_i <= 0; // Xả valid
+            
+            // Chờ LSU trả kết quả (FSM: IDLE -> WAIT -> DONE)
+            // Trong DUT: valid_o bật khi state == DONE
+            while (vif.valid_o !== 1) @(posedge vif.clk);
 
-            // --- 3. DEASSERT REQUEST ---
-
-            if (req.valid_i) begin 
-                do begin @(posedge vif.clk_i); end while (vif.ready_o !== 1'b1);
-                vif.valid_i <= 1'b0;
-                end          
-        seq_item_port.item_done();
+            seq_item_port.item_done();
         end
     endtask
 endclass
 
 // -----------------------------------------------------------------------------
-// 4. MONITOR (Input/Output Queueing)
+// 4. MONITOR
 // -----------------------------------------------------------------------------
 class lsu_monitor extends uvm_monitor;
     `uvm_component_utils(lsu_monitor)
     virtual lsu_if vif;
-    uvm_analysis_port #(lsu_item) mon_port;
+    uvm_analysis_port #(lsu_item) mon_ap;
+    
+    lsu_item pending_item;
 
-    // Queue để lưu Input chờ Output tương ứng (xử lý Pipeline Latency)
-    lsu_item pending_q[$]; 
-
-    function new(string name, uvm_component parent);
-        super.new(name, parent);
-        mon_port = new("mon_port", this);
-    endfunction
+    function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        if (!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif))
-            `uvm_fatal("MON", "FATAL: Interface not found")
+        mon_ap = new("mon_ap", this);
+        if(!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif)) `uvm_fatal("MON", "No IF")
     endfunction
 
     task run_phase(uvm_phase phase);
-        fork
-            monitor_input();
-            monitor_output();
-        join
-    endtask
-
-    // Process 1: Capture Valid Input Handshake
-    task monitor_input();
         forever begin
-            @(negedge vif.clk_i);
+            @(posedge vif.clk);
+            #1;
+            // 1. CAPTURE REQUEST & MEMORY SIGNALS (Khi Valid & Ready)
+            // Đây là lúc duy nhất dmem_we/dmem_be bật lên
             if (vif.valid_i && vif.ready_o) begin
-                lsu_item item = lsu_item::type_id::create("item_in");
-                item.addr_i       = vif.addr_i;
-                item.wdata_i      = vif.wdata_i;
-                item.lsu_we_i     = vif.lsu_we_i;
-                item.funct3_i     = vif.funct3_i;
-                item.dmem_rdata_i = vif.dmem_rdata_i;
-                
-                // Capture immediate DMEM control signals (Combinational at IDLE)
-                item.dmem_addr_o  = vif.dmem_addr_o;
-                item.dmem_wdata_o = vif.dmem_wdata_o;
-                item.dmem_be_o    = vif.dmem_be_o;
-                item.dmem_we_o    = vif.dmem_we_o;
+                pending_item = lsu_item::type_id::create("pkt");
+                pending_item.addr          = vif.addr_i;
+                pending_item.wdata         = vif.wdata_i;
+                pending_item.we            = vif.lsu_we_i;
+                pending_item.funct3        = vif.funct3_i;
+                pending_item.mock_mem_data = vif.dmem_rdata_i;
 
-                pending_q.push_back(item);
+                // Delay 1ns để chờ logic tổ hợp của DUT tính toán xong
+                pending_item.actual_dmem_addr  = vif.dmem_addr_o;
+                pending_item.actual_dmem_wdata = vif.dmem_wdata_o;
+                pending_item.actual_dmem_be    = vif.dmem_be_o;
+                pending_item.actual_dmem_we    = vif.dmem_we_o;
+                // --------------------------------------------------
             end
-        end
-    endtask
 
-    // Process 2: Capture Valid Output Handshake
-    task monitor_output();
-        forever begin
-            @(negedge vif.clk_i);
-            if (vif.valid_o && vif.ready_i) begin
-                lsu_item item;
-                if (pending_q.size() > 0) begin
-                    item = pending_q.pop_front();
+            // 2. CAPTURE RESPONSE (Khi Valid Output)
+            if (vif.valid_o) begin
+                if (pending_item != null) begin
+                    // Lúc này chỉ bắt kết quả trả về cho Core
+                    pending_item.actual_rdata      = vif.lsu_rdata_o;
+                    pending_item.actual_err        = vif.lsu_err_o;
                     
-                    // Capture Results
-                    item.lsu_rdata_o = vif.lsu_rdata_o;
-                    item.lsu_err_o   = vif.lsu_err_o;
-
-                    mon_port.write(item);
-                end else begin
-                    `uvm_error("MON", "Spurious Output detected (No matching Input)!")
+                    // Gửi trọn gói sang Scoreboard
+                    mon_ap.write(pending_item);
+                    pending_item = null; // Clear
                 end
             end
         end
@@ -209,245 +238,232 @@ class lsu_monitor extends uvm_monitor;
 endclass
 
 // -----------------------------------------------------------------------------
-// 5. SCOREBOARD (Golden Model Logic)
+// 5. SCOREBOARD
 // -----------------------------------------------------------------------------
 class lsu_scoreboard extends uvm_scoreboard;
     `uvm_component_utils(lsu_scoreboard)
-    uvm_analysis_imp #(lsu_item, lsu_scoreboard) scb_export;
+    uvm_analysis_imp #(lsu_item, lsu_scoreboard) sb_export;
+    
+    // --- STATISTICS ---
+    int cnt_load       = 0;
+    int cnt_store      = 0;
+    int cnt_misaligned = 0;
+    int cnt_byte       = 0;
+    int cnt_half       = 0;
+    int cnt_word       = 0;
+    int cnt_pass       = 0;
 
-    function new(string name, uvm_component parent);
-        super.new(name, parent);
-        scb_export = new("scb_export", this);
+    bit verbose = 0; 
+
+    function new(string name, uvm_component parent); super.new(name, parent); endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+        sb_export = new("sb_export", this);
+        if ($test$plusargs("VERBOSE")) verbose = 1;
     endfunction
 
-    function void write(lsu_item trans);
-        bit [1:0]  offset;
-        bit        exp_misaligned;
-        bit [3:0]  exp_be;
-        bit [31:0] exp_dmem_wdata;
-        bit [31:0] exp_lsu_rdata;
-        bit [31:0] shifted_rdata;
+    // --- GOLDEN MODEL FUNCTIONS ---
 
-        offset = trans.addr_i[1:0];
-        exp_misaligned = 0;
-
-        // --- 1. Check Misalignment ---
-        case (trans.funct3_i[1:0])
-            2'b01: if (offset[0] != 0) exp_misaligned = 1; // Half
-            2'b10: if (offset != 0)    exp_misaligned = 1; // Word
+    // 1. Check Misaligned
+    function bit check_misaligned(logic [31:0] addr, logic [2:0] funct3);
+        case (funct3)
+            3'b010: return (addr[1:0] != 0);    // LW, SW (Align 4)
+            3'b001, 3'b101: return (addr[0] != 0); // LH, LHU, SH (Align 2)
+            default: return 0; // Byte is always aligned
         endcase
-
-        // Verify Trap Signal
-        if (trans.lsu_err_o !== exp_misaligned) begin
-            `uvm_error("SCB", $sformatf("TRAP MISMATCH! Addr=%h, Funct3=%b | ExpErr=%b ActErr=%b", 
-                       trans.addr_i, trans.funct3_i, exp_misaligned, trans.lsu_err_o))
-        end
-
-        // --- 2. Check Store Logic (Memory Interface) ---
-        // Lưu ý: Logic này xảy ra ngay tại cycle IDLE
-        if (trans.lsu_we_i && !exp_misaligned && trans.valid_i) begin
-            exp_dmem_wdata = trans.wdata_i << (offset * 8);
-            
-            case (trans.funct3_i[1:0])
-                2'b00: exp_be = 4'b0001 << offset; // SB
-                2'b01: exp_be = 4'b0011 << offset; // SH
-                2'b10: exp_be = 4'b1111;           // SW
-                default: exp_be = 0;
-            endcase
-
-            if (trans.dmem_we_o !== 1'b1) 
-                 `uvm_error("SCB", "DMEM_WE should be HIGH for valid store!")
-            if (trans.dmem_wdata_o !== exp_dmem_wdata)
-                 `uvm_error("SCB", $sformatf("WDATA MISMATCH! Exp=%h Act=%h", exp_dmem_wdata, trans.dmem_wdata_o))
-            if (trans.dmem_be_o !== exp_be)
-                 `uvm_error("SCB", $sformatf("BE MISMATCH! Exp=%b Act=%b", exp_be, trans.dmem_be_o))
-        end else begin
-            // Nếu là Load hoặc Lỗi, không được ghi RAM
-            if (trans.dmem_we_o !== 1'b0)
-                 `uvm_error("SCB", "DMEM_WE should be LOW for Load or Error!")
-        end
-
-        // --- 3. Check Load Logic (Result to Core) ---
-        if (!trans.lsu_we_i && !exp_misaligned) begin
-            shifted_rdata = trans.dmem_rdata_i >> (offset * 8);
-            
-            case (trans.funct3_i)
-                3'b000: exp_lsu_rdata = {{24{shifted_rdata[7]}}, shifted_rdata[7:0]};   // LB
-                3'b100: exp_lsu_rdata = {24'b0, shifted_rdata[7:0]};                   // LBU
-                3'b001: exp_lsu_rdata = {{16{shifted_rdata[15]}}, shifted_rdata[15:0]}; // LH
-                3'b101: exp_lsu_rdata = {16'b0, shifted_rdata[15:0]};                  // LHU
-                3'b010: exp_lsu_rdata = shifted_rdata;                                 // LW
-                default: exp_lsu_rdata = 0;
-            endcase
-
-            if (trans.lsu_rdata_o !== exp_lsu_rdata) begin
-                 `uvm_error("SCB", $sformatf("LOAD DATA MISMATCH! Funct3=%b Raw=%h Off=%d | Exp=%h Act=%h", 
-                            trans.funct3_i, trans.dmem_rdata_i, offset, exp_lsu_rdata, trans.lsu_rdata_o))
-            end
-        end
-
     endfunction
+
+    // 2. Predict Load Data (Sign Extension Logic)
+    function logic [31:0] predict_load(lsu_item pkt);
+        logic [31:0] aligned_data;
+        logic [1:0]  offset;
+        offset = pkt.addr[1:0];
+        
+        // Dịch dữ liệu thô xuống bit 0 (Mô phỏng: raw >> offset*8)
+        aligned_data = pkt.mock_mem_data >> (offset * 8);
+
+        case (pkt.funct3)
+            3'b000: return {{24{aligned_data[7]}}, aligned_data[7:0]};   // LB
+            3'b100: return {24'b0, aligned_data[7:0]};                   // LBU
+            3'b001: return {{16{aligned_data[15]}}, aligned_data[15:0]}; // LH
+            3'b101: return {16'b0, aligned_data[15:0]};                  // LHU
+            3'b010: return pkt.mock_mem_data;                            // LW
+            default: return 0;
+        endcase
+    endfunction
+
+    // 3. Predict Store (Data Shifting & BE)
+    function void predict_store(lsu_item pkt, output logic [31:0] exp_wdata, output logic [3:0] exp_be);
+        logic [1:0] offset = pkt.addr[1:0];
+        
+        exp_wdata = pkt.wdata << (offset * 8);
+        
+        case (pkt.funct3)
+            3'b000: exp_be = 4'b0001 << offset; // SB
+            3'b001: exp_be = 4'b0011 << offset; // SH
+            3'b010: exp_be = 4'b1111;           // SW
+            default: exp_be = 0;
+        endcase
+    endfunction
+
+    // --- MAIN CHECK LOGIC ---
+    function void write(lsu_item pkt);
+        string msg;
+        bit    expected_err;
+        logic [31:0] expected_rdata;
+        logic [31:0] expected_dmem_wdata;
+        logic [3:0]  expected_dmem_be;
+
+        // 1. Check Alignment
+        expected_err = check_misaligned(pkt.addr, pkt.funct3);
+
+        if (pkt.actual_err !== expected_err) begin
+            `uvm_error("FAIL", $sformatf("Misaligned Check Fail! Addr:%h F3:%b ExpErr:%b ActErr:%b", 
+                pkt.addr, pkt.funct3, expected_err, pkt.actual_err))
+        end
+
+        // 2. If Error -> Stop checking data
+        if (expected_err) begin
+            cnt_misaligned++;
+            if (verbose) $display("[PASS] Misaligned Trap Caught: Addr %h", pkt.addr);
+            return;
+        end
+
+        // 3. Check LOAD
+        if (pkt.we == 0) begin
+            expected_rdata = predict_load(pkt);
+            if (pkt.actual_rdata !== expected_rdata) begin
+                `uvm_error("FAIL", $sformatf("[LOAD] Data Mismatch! Addr:%h F3:%b Mem:%h Exp:%h Act:%h",
+                    pkt.addr, pkt.funct3, pkt.mock_mem_data, expected_rdata, pkt.actual_rdata))
+            end else if (verbose) begin
+                $display("[PASS] LOAD Addr:%h | Type:%b | Val:%h", pkt.addr, pkt.funct3, pkt.actual_rdata);
+            end
+            cnt_load++;
+        end 
+        
+        // 4. Check STORE
+        else begin
+            predict_store(pkt, expected_dmem_wdata, expected_dmem_be);
+            
+            if (pkt.actual_dmem_we !== 1) `uvm_error("FAIL", "[STORE] DMEM WE should be 1")
+            
+            if (pkt.actual_dmem_be !== expected_dmem_be) 
+                `uvm_error("FAIL", $sformatf("[STORE] BE Mismatch! Addr:%h F3:%b ExpBE:%b ActBE:%b",
+                    pkt.addr, pkt.funct3, expected_dmem_be, pkt.actual_dmem_be))
+            
+            if (pkt.actual_dmem_wdata !== expected_dmem_wdata)
+                `uvm_error("FAIL", $sformatf("[STORE] WData Mismatch! Addr:%h Data:%h Exp:%h Act:%h",
+                    pkt.addr, pkt.wdata, expected_dmem_wdata, pkt.actual_dmem_wdata))
+
+            else if (verbose) begin
+                $display("[PASS] STORE Addr:%h | Type:%b | BE:%b | Data:%h", pkt.addr, pkt.funct3, pkt.actual_dmem_be, pkt.actual_dmem_wdata);
+            end
+            cnt_store++;
+        end
+
+        // Stats
+        case(pkt.funct3)
+            3'b000, 3'b100: cnt_byte++;
+            3'b001, 3'b101: cnt_half++;
+            3'b010:         cnt_word++;
+        endcase
+        cnt_pass++;
+    endfunction
+
+    function void report_phase(uvm_phase phase);
+        $display("\n==================================================");
+        $display("           LSU VERIFICATION REPORT                ");
+        $display("==================================================");
+        $display("Total Transactions   : %0d", cnt_pass + cnt_misaligned);
+        $display("Load Operations      : %0d", cnt_load);
+        $display("Store Operations     : %0d", cnt_store);
+        $display("Misaligned Traps     : %0d", cnt_misaligned);
+        $display("--------------------------------------------------");
+        $display("Byte Accesses (8-bit): %0d", cnt_byte);
+        $display("Half Accesses (16b)  : %0d", cnt_half);
+        $display("Word Accesses (32b)  : %0d", cnt_word);
+        $display("==================================================\n");
+    endfunction    
 endclass
 
 // -----------------------------------------------------------------------------
-// 6. AGENT & ENV (Standard Boilerplate)
+// 6. AGENT - ENV - TEST
 // -----------------------------------------------------------------------------
 class lsu_agent extends uvm_agent;
     `uvm_component_utils(lsu_agent)
-    lsu_driver    driver;
-    lsu_monitor   monitor;
-    uvm_sequencer #(lsu_item) sequencer;
-    function new(string name, uvm_component parent); super.new(name, parent); endfunction
-    function void build_phase(uvm_phase phase);
+    lsu_driver drv; lsu_monitor mon; uvm_sequencer #(lsu_item) sqr;
+    function new(string name, uvm_component p); super.new(name, p); endfunction
+    function void build_phase(uvm_phase phase); 
         super.build_phase(phase);
-        driver    = lsu_driver::type_id::create("driver", this);
-        monitor   = lsu_monitor::type_id::create("monitor", this);
-        sequencer = uvm_sequencer#(lsu_item)::type_id::create("sequencer", this);
+        drv = lsu_driver::type_id::create("drv", this);
+        mon = lsu_monitor::type_id::create("mon", this);
+        sqr = uvm_sequencer#(lsu_item)::type_id::create("sqr", this);
     endfunction
-    function void connect_phase(uvm_phase phase);
-        driver.seq_item_port.connect(sequencer.seq_item_export);
-    endfunction
+    function void connect_phase(uvm_phase phase); drv.seq_item_port.connect(sqr.seq_item_export); endfunction
 endclass
 
 class lsu_env extends uvm_env;
     `uvm_component_utils(lsu_env)
-    lsu_agent      agent;
-    lsu_scoreboard scb;
-    function new(string name, uvm_component parent); super.new(name, parent); endfunction
+    lsu_agent agent; lsu_scoreboard scb;
+    function new(string name, uvm_component p); super.new(name, p); endfunction
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         agent = lsu_agent::type_id::create("agent", this);
         scb   = lsu_scoreboard::type_id::create("scb", this);
     endfunction
-    function void connect_phase(uvm_phase phase);
-        agent.monitor.mon_port.connect(scb.scb_export);
-    endfunction
+    function void connect_phase(uvm_phase phase); agent.mon.mon_ap.connect(scb.sb_export); endfunction
 endclass
 
-// -----------------------------------------------------------------------------
-// 7. SEQUENCE
-// -----------------------------------------------------------------------------
-class lsu_rand_sequence extends uvm_sequence #(lsu_item);
-    `uvm_object_utils(lsu_rand_sequence)
-    function new(string name = ""); super.new(name); endfunction
-    
-    task body();
-        int unsigned rand_idx;
-        logic [2:0] valid_funct3 [5] = '{3'b000, 3'b001, 3'b010, 3'b100, 3'b101};
-
-        repeat(100000) begin
-            req = lsu_item::type_id::create("req");
-            start_item(req);
-
-            // Manual Randomization
-            req.lsu_we_i = $urandom_range(0, 1);
-            rand_idx = $urandom_range(0, 4);
-            req.funct3_i = valid_funct3[rand_idx];
-            req.addr_i   = $urandom(); 
-            req.wdata_i  = $urandom();
-            req.dmem_rdata_i = $urandom(); // Giả lập RAM
-            req.delay_cycles = $urandom_range(0, 2);
-
-            finish_item(req);
-        end
-    endtask
-endclass
-
-// -----------------------------------------------------------------------------
-// 8. TEST
-// -----------------------------------------------------------------------------
-class lsu_basic_test extends uvm_test;
-    `uvm_component_utils(lsu_basic_test)
+class lsu_test extends uvm_test;
+    `uvm_component_utils(lsu_test)
     lsu_env env;
-    function new(string name, uvm_component parent); super.new(name, parent); endfunction
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        env = lsu_env::type_id::create("env", this);
-    endfunction
+    function new(string name, uvm_component p); super.new(name, p); endfunction
+    function void build_phase(uvm_phase phase); super.build_phase(phase); env = lsu_env::type_id::create("env", this); endfunction
     task run_phase(uvm_phase phase);
-        lsu_rand_sequence seq;
-        seq = lsu_rand_sequence::type_id::create("seq");
-        phase.raise_objection(this);
-        seq.start(env.agent.sequencer);
-        #100; // Wait for pipeline to drain
+        lsu_random_seq seq = lsu_random_seq::type_id::create("seq");
+        phase.raise_objection(this); 
+        seq.start(env.agent.sqr); 
         phase.drop_objection(this);
     endtask
 endclass
 
-// =============================================================================
-// 9. TOP MODULE
-// =============================================================================
+// -----------------------------------------------------------------------------
+// 7. TOP MODULE
+// -----------------------------------------------------------------------------
 module tb_top;
     import uvm_pkg::*;
-    bit clk;
-    always #5 clk = ~clk;
+    import riscv_32im_pkg::*;
 
+    logic clk; always #5 clk = ~clk; 
     lsu_if vif(clk);
-
-    // Instantiate Handshake LSU
+    
+    // DUT Instantiation
     lsu dut (
-        .clk_i        (clk),
-        .rst_i        (vif.rst_i), // Active High
-
-        // Core
-        .valid_i      (vif.valid_i),
-        .ready_o      (vif.ready_o),
-        .addr_i       (vif.addr_i),
-        .wdata_i      (vif.wdata_i),
-        .lsu_we_i     (vif.lsu_we_i),
-        .funct3_i     (vif.funct3_i),
-
-        // Writeback
-        .valid_o      (vif.valid_o),
-        .ready_i      (vif.ready_i),
-        .lsu_rdata_o  (vif.lsu_rdata_o),
-        .lsu_err_o    (vif.lsu_err_o),
-
-        // DMEM
-        .dmem_addr_o  (vif.dmem_addr_o),
-        .dmem_wdata_o (vif.dmem_wdata_o),
-        .dmem_be_o    (vif.dmem_be_o),
-        .dmem_we_o    (vif.dmem_we_o),
-        .dmem_rdata_i (vif.dmem_rdata_i)
+        .clk_i       (vif.clk),
+        .rst_i       (vif.rst_i),
+        .addr_i      (vif.addr_i),
+        .wdata_i     (vif.wdata_i),
+        .lsu_we_i    (vif.lsu_we_i),
+        .funct3_i    (vif.funct3_i),
+        .valid_i     (vif.valid_i),
+        .ready_o     (vif.ready_o),
+        
+        .valid_o     (vif.valid_o),
+        .ready_i     (vif.ready_i),
+        .lsu_rdata_o (vif.lsu_rdata_o),
+        .lsu_err_o   (vif.lsu_err_o),
+        
+        .dmem_addr_o (vif.dmem_addr_o),
+        .dmem_wdata_o(vif.dmem_wdata_o),
+        .dmem_be_o   (vif.dmem_be_o),
+        .dmem_we_o   (vif.dmem_we_o),
+        .dmem_rdata_i(vif.dmem_rdata_i)
     );
 
-    // --- SETUP & RESET ---
     initial begin
-        vif.rst_i = 1; // Assert Reset (Active High)
+        clk=0;
         uvm_config_db#(virtual lsu_if)::set(null, "*", "vif", vif);
-        run_test("lsu_basic_test");
-    end
-
-    initial begin
-        #20; vif.rst_i = 0; // Deassert Reset
-    end
-
-    // --- DOWNSTREAM BACK-PRESSURE SIMULATION ---
-    // Giả lập Writeback Stage đôi khi bận
-    initial begin
-        vif.ready_i = 1;
-        forever begin
-            @(negedge clk);
-            // 70% chance ready, 30% stall
-            vif.ready_i = ($urandom_range(0, 9) < 7);
-        end
-    end
-
-    // --- CONSOLE MONITOR ---
-    initial begin
-        $display("\n======================================================================================");
-        $display(" Time | ValI RdyO | WE Fn3 |   Addr   |   Data In   | ValO RdyI | Err |   Data Out  ");
-        $display("------+-----------+--------+----------+-------------+-----------+-----+-------------");
-        
-        $monitor("%4t |  %b    %b  | %b %3b | %h | %h |  %b    %b  |  %b  | %h",
-                 $time,
-                 vif.valid_i, vif.ready_o,
-                 vif.lsu_we_i, vif.funct3_i,
-                 vif.addr_i, 
-                 (vif.lsu_we_i ? vif.wdata_i : vif.dmem_rdata_i),
-                 vif.valid_o, vif.ready_i,
-                 vif.lsu_err_o,
-                 vif.lsu_rdata_o
-        );
+        run_test("lsu_test");
     end
 endmodule

@@ -70,7 +70,7 @@ endmodule
 
 module  alu_shift_inst (
        input logic [31:0] a_i, //data in 1
-       input logic [31:0] b_i, //data in 2
+       input logic [4:0] b_i, //data in 2
        input logic [1:0]   shift_type_i, //00 SLL, 01 SRL, 10 SRA
        output logic [31:0] result_o
     );

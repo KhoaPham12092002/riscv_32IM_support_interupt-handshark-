@@ -9,7 +9,8 @@ module decoder
     output logic [31:0]        imm_o,
     output logic [4:0]       rd_addr_o,
     output logic [4:0]       rs1_addr_o,
-    output logic [4:0]       rs2_addr_o
+    output logic [4:0]       rs2_addr_o,
+
     // Upstream (Nhận từ IF/ID Pipeline Reg)
     input  logic        valid_i, 
     output logic        ready_o,
@@ -20,6 +21,7 @@ module decoder
 );
     assign valid_o = valid_i;
     assign ready_o = ready_i;
+
 // 1. INSTRUCTION SLICING (Internal Data Types)
     instr_t instr; 
     assign instr.raw = instr_i;
@@ -32,17 +34,21 @@ module decoder
 // 2.MAIN CONTROL DECODER 
     always_comb begin
 	// Default Assignments 
-        ctrl_o.illegal_instr = 1'b0;
-        ctrl_o.imm_type      = IMM_I;
-        ctrl_o.rf_we        = 1'b0;
-        ctrl_o.wb_sel       = WB_ALU;
+        ctrl_o.illegal_instr    = 1'b0;
+        ctrl_o.is_mret          = 1'b0;
+        ctrl_o.is_ecall         = 1'b0;
+        ctrl_o.is_ebreak        = 1'b0;
+        ctrl_o.imm_type         = IMM_I;
+        ctrl_o.rf_we            = 1'b0;
+        ctrl_o.wb_sel           = WB_ALU;
 	// Reset sub-packets to 0
 	ctrl_o.alu_req = ALU_REQ_RST;
 	ctrl_o.m_req   = M_REQ_RST;
 	ctrl_o.lsu_req = LSU_REQ_RST;
 	ctrl_o.br_req  = BR_REQ_RST;
+    ctrl_o.csr_req = CSR_REQ_RST;
     // Instruction Decoding
-    casez (instr.raw)
+     casez (instr.raw)
         // GROUP 1: UPPER IMMEDIATE (U-Type)
             LUI: begin
                 ctrl_o.imm_type = IMM_U;    
@@ -56,6 +62,7 @@ module decoder
             end
             // AUIPC: Add Upper Imm to PC (Rd = PC + (Imm << 12))
             AUIPC: begin
+                 
                 ctrl_o.imm_type = IMM_U;    
                 ctrl_o.rf_we    = 1'b1; // Ghi vào Rd
                 ctrl_o.wb_sel   = WB_ALU; 
@@ -361,215 +368,306 @@ module decoder
                 ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
             end
         // GROUP 4: BRANCH INSTRUCTIONS (B-Type)
-        // BEQ : Branch if Equal
-        BEQ: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BEQ;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1; 
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SUB;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
-        // BNE : Branch if Not Equal
-        BNE: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BNE;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1;
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SUB;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
-        // BLT : Branch if Less Than (Signed)
-        BLT: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BLT;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1;
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SLT;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
-        // BLTU : Branch if Less Than (Unsigned)
-        BLTU: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BLTU;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1;
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SLTU;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
-        // BGE : Branch if Greater Than or Equal (Signed)
-        BGE: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BGE;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1;
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SLT;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
-        // BGEU : Branch if Greater Than or Equal (Unsigned)
-        BGEU: begin
-            ctrl_o.imm_type = IMM_B;
-            ctrl_o.br_req.op = BR_BGEU;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            ctrl_o.br_req.is_branch     = 1'b1;
-            ctrl_o.br_req.is_jump       = 1'b0;
-            // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-            ctrl_o.alu_req.op        = ALU_SLTU;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
-            end
+            // BEQ : Branch if Equal
+            BEQ: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BEQ;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1; 
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SUB;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
+            // BNE : Branch if Not Equal
+            BNE: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BNE;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1;
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SUB;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
+            // BLT : Branch if Less Than (Signed)
+            BLT: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BLT;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1;
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SLT;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
+            // BLTU : Branch if Less Than (Unsigned)
+            BLTU: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BLTU;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1;
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SLTU;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
+            // BGE : Branch if Greater Than or Equal (Signed)
+            BGE: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BGE;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1;
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SLT;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
+            // BGEU : Branch if Greater Than or Equal (Unsigned)
+            BGEU: begin
+                ctrl_o.imm_type = IMM_B;
+                ctrl_o.br_req.op = BR_BGEU;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                ctrl_o.br_req.is_branch     = 1'b1;
+                ctrl_o.br_req.is_jump       = 1'b0;
+                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
+                ctrl_o.alu_req.op        = ALU_SLTU;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                end
         // GROUP 5: JUMP INSTRUCTIONS (J-Type & I-Type)
-        // JAL : Jump and Link -> PC = PC+ Imm, Rd = PC + 4
-        JAL: begin
-            ctrl_o.imm_type = IMM_J;
-            ctrl_o.br_req.is_jump       = 1'b1;
-            ctrl_o.br_req.is_branch     = 1'b0;
-            ctrl_o.rf_we                = 1'b1; // Ghi PC + 4 vào Rd
-            ctrl_o.wb_sel               = WB_PC_PLUS4;
-            ctrl_o.br_req.is_jump       = 1'b1;
-            // Logic: ALU Result = PC + Immediate (for target address)
-            ctrl_o.alu_req.op        = ALU_ADD;
-            ctrl_o.alu_req.op_a_sel  = OP_A_PC;
-            ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
-        end
+            // JAL : Jump and Link -> PC = PC+ Imm, Rd = PC + 4
+            JAL: begin
+                ctrl_o.imm_type = IMM_J;
+                ctrl_o.br_req.is_jump       = 1'b1;
+                ctrl_o.br_req.is_branch     = 1'b0;
+                ctrl_o.rf_we                = 1'b1; // Ghi PC + 4 vào Rd
+                ctrl_o.wb_sel               = WB_PC_PLUS4;
+                ctrl_o.br_req.is_jump       = 1'b1;
+                // Logic: ALU Result = PC + Immediate (for target address)
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
+            end
         // GROUP 6: STORE INSTRUCTIONS (S-Type)
-        // SB : Store Byte
-        SB: begin
-            ctrl_o.imm_type = IMM_S;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            // Address Rs1 + Imm_11_0
-            ctrl_o.alu_req.op        = ALU_ADD;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
-            // Logic: Store Byte to Memory
-            ctrl_o.lsu_req.width = MEM_BYTE;
-            ctrl_o.lsu_req.we   = 1'b1;
-        end
-        // SH : Store Halfword
-        SH: begin
-            ctrl_o.imm_type = IMM_S;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            // Address Rs1 + Imm_11_0
-            ctrl_o.alu_req.op        = ALU_ADD;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
-            // Logic: Store Halfword to Memory
-            ctrl_o.lsu_req.width = MEM_HALF;
-            ctrl_o.lsu_req.we   = 1'b1;
-        end
-        // SW : Store Word
-        SW: begin
-            ctrl_o.imm_type = IMM_S;
-            ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
-            // Address Rs1 + Imm_11_0
-            ctrl_o.alu_req.op        = ALU_ADD;
-            ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-            ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
-            // Logic: Store Word to Memory
-            ctrl_o.lsu_req.width = MEM_WORD;
-            ctrl_o.lsu_req.we   = 1'b1;
-        end
+            // SB : Store Byte
+            SB: begin
+                ctrl_o.imm_type = IMM_S;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                // Address Rs1 + Imm_11_0
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
+                // Logic: Store Byte to Memory
+                ctrl_o.lsu_req.width = MEM_BYTE;
+                ctrl_o.lsu_req.we   = 1'b1;
+            end
+            // SH : Store Halfword
+            SH: begin
+                ctrl_o.imm_type = IMM_S;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                // Address Rs1 + Imm_11_0
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
+                // Logic: Store Halfword to Memory
+                ctrl_o.lsu_req.width = MEM_HALF;
+                ctrl_o.lsu_req.we   = 1'b1;
+            end
+            // SW : Store Word
+            SW: begin
+                ctrl_o.imm_type = IMM_S;
+                ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
+                // Address Rs1 + Imm_11_0
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
+                // Logic: Store Word to Memory
+                ctrl_o.lsu_req.width = MEM_WORD;
+                ctrl_o.lsu_req.we   = 1'b1;
+            end
         // GROUP 7: MULTIPLY & DIVIDE (R-Type)
-        // MUL : Multiply (Rd = Rs1 * Rs2)
-        MUL: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+            // MUL : Multiply (Rd = Rs1 * Rs2)
+            MUL: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = Rs1 * Rs2
-            ctrl_o.m_req.op        = M_MUL;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // MULH : Multiply High (Signed)
-        MULH: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = Rs1 * Rs2
+                ctrl_o.m_req.op        = M_MUL;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // MULH : Multiply High (Signed)
+            MULH: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
-            ctrl_o.m_req.op        = M_MULH;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // MULHU : Multiply High Unsigned
-        MULHU: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
+                ctrl_o.m_req.op        = M_MULH;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // MULHU : Multiply High Unsigned
+            MULHU: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
-            ctrl_o.m_req.op        = M_MULHU;
-            ctrl_o.m_req.valid     = 1'b1;
-        end 
-        // MULHSU : Multiply High Signed-Unsigned
-        MULHSU: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
+                ctrl_o.m_req.op        = M_MULHU;
+                ctrl_o.m_req.valid     = 1'b1;
+            end 
+            // MULHSU : Multiply High Signed-Unsigned
+            MULHSU: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
-            ctrl_o.m_req.op        = M_MULHSU;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // DIV : Divide (Rd = Rs1 / Rs2)
-        DIV: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = high 32 bits of (Rs1 * Rs2)
+                ctrl_o.m_req.op        = M_MULHSU;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // DIV : Divide (Rd = Rs1 / Rs2)
+            DIV: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = Rs1 / Rs2
-            ctrl_o.m_req.op        = M_DIV;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // DIVU : Divide Unsigned (Rd = Rs1 / Rs2)
-        DIVU: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = Rs1 / Rs2
+                ctrl_o.m_req.op        = M_DIV;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // DIVU : Divide Unsigned (Rd = Rs1 / Rs2)
+            DIVU: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = Rs1 / Rs2
-            ctrl_o.m_req.op        = M_DIVU;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // REM : Remainder (Rd = Rs1 % Rs2)
-        REM: begin
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = Rs1 / Rs2
+                ctrl_o.m_req.op        = M_DIVU;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // REM : Remainder (Rd = Rs1 % Rs2)
+            REM: begin
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = Rs1 % Rs2
-            ctrl_o.m_req.op        = M_REM;
-            ctrl_o.m_req.valid     = 1'b1;
-        end
-        // REMU : Remainder Unsigned (Rd = Rs1 % Rs2)
-        REMU: begin 
-            ctrl_o.imm_type = IMM_Z;
-            ctrl_o.rf_we    = 1'b1;
-            ctrl_o.wb_sel   = WB_M_UNIT;
+                // Logic: MULDIV Result = Rs1 % Rs2
+                ctrl_o.m_req.op        = M_REM;
+                ctrl_o.m_req.valid     = 1'b1;
+            end
+            // REMU : Remainder Unsigned (Rd = Rs1 % Rs2)
+            REMU: begin 
+                ctrl_o.imm_type = IMM_Z;
+                ctrl_o.rf_we    = 1'b1;
+                ctrl_o.wb_sel   = WB_M_UNIT;
 
-            // Logic: MULDIV Result = Rs1 % Rs2
-            ctrl_o.m_req.op        = M_REMU;
-            ctrl_o.m_req.valid     = 1'b1;
-        end 
+                // Logic: MULDIV Result = Rs1 % Rs2
+                ctrl_o.m_req.op        = M_REMU;
+                ctrl_o.m_req.valid     = 1'b1;
+            end 
+        // GROUP 8: CSR (SYSTEM)
+            // 1. CSR Read/Write (CSRRW) - Rd = CSR, CSR = Rs1
+                CSRRW: begin
+                    ctrl_o.imm_type = IMM_I;     // Lấy 12-bit Address
+                    ctrl_o.wb_sel   = WB_CSR;    // Ghi kết quả CSR về Rd
+                    ctrl_o.rf_we    = 1'b1;      
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RW;
+                    ctrl_o.csr_req.is_imm = 1'b0;
+                    ctrl_o.csr_req.addr   = instr.i_type.imm; // Addr nằm ở Imm
+                end
+
+            // 2. CSR Read/Set (CSRRS) - Rd = CSR, CSR |= Rs1
+                CSRRS: begin
+                    ctrl_o.imm_type = IMM_I;
+                    ctrl_o.wb_sel   = WB_CSR;
+                    ctrl_o.rf_we    = 1'b1;
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RS;
+                    ctrl_o.csr_req.is_imm = 1'b0;
+                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                end
+
+            // 3. CSR Read/Clear (CSRRC) - Rd = CSR, CSR &= ~Rs1
+                CSRRC: begin
+                    ctrl_o.imm_type = IMM_I;
+                    ctrl_o.wb_sel   = WB_CSR;
+                    ctrl_o.rf_we    = 1'b1;
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RC;
+                    ctrl_o.csr_req.is_imm = 1'b0;
+                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                end
+
+            // 4. CSR Read/Write Immediate (CSRRWI) - Rd = CSR, CSR = Zimm
+                CSRRWI: begin
+                    ctrl_o.imm_type = IMM_I; 
+                    ctrl_o.wb_sel   = WB_CSR;
+                    ctrl_o.rf_we    = 1'b1;
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RW;
+                    ctrl_o.csr_req.is_imm = 1'b1; // Dùng Immediate
+                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                    // Zimm 5-bit nằm ở vị trí rs1 (bit 19:15)
+                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1}; 
+                end
+
+            // 5. CSR Read/Set Immediate (CSRRSI)
+                CSRRSI: begin
+                    ctrl_o.imm_type = IMM_I;
+                    ctrl_o.wb_sel   = WB_CSR;
+                    ctrl_o.rf_we    = 1'b1;
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RS;
+                    ctrl_o.csr_req.is_imm = 1'b1;
+                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1};
+                end
+
+            // 6. CSR Read/Clear Immediate (CSRRCI)
+                CSRRCI: begin
+                    ctrl_o.imm_type = IMM_I;
+                    ctrl_o.wb_sel   = WB_CSR;
+                    ctrl_o.rf_we    = 1'b1;
+                    
+                    ctrl_o.csr_req.valid  = 1'b1;
+                    ctrl_o.csr_req.op     = CSR_RC;
+                    ctrl_o.csr_req.is_imm = 1'b1;
+                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1};
+                end
+
+            // 7. SYSTEM TRAPS (MRET, ECALL, EBREAK)
+              
+                MRET: begin
+                    ctrl_o.is_mret = 1'b1; // Báo hiệu MRET
+                end
+
+                ECALL: begin
+                    ctrl_o.is_ecall = 1'b1; // Báo hiệu ECALL
+                end
+
+                EBREAK: begin
+                    ctrl_o.is_ebreak = 1'b1; // Báo hiệu EBREAK
+                end
+
         default: begin
             ctrl_o.illegal_instr = 1'b1; // Báo lệnh không hợp lệ (Trap)
         end
     endcase
-    end
+    end 
 // 3. IMMEDIATE GENERATION
     always_comb begin
         unique case (ctrl_o.imm_type)

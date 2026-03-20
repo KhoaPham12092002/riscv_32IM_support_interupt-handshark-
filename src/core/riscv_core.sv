@@ -38,7 +38,6 @@ module riscv_core (
     // --- Global Control & Hazard ---
     logic        flush_pipeline;
     logic        pipeline_stall;
-    logic        stall_imem, stall_dmem;
     logic        pc_stall, if_id_stall, id_ex_flush; // FIXED: Added missing decl
 
     // --- IF Stage ---
@@ -92,10 +91,6 @@ module riscv_core (
     // =========================================================================
     // HAZARD DETECTION & GLOBAL STALL
     // =========================================================================
-    assign stall_imem     = imem_valid_o && !imem_ready_i;
-    assign stall_dmem     = dmem_valid_o && !dmem_ready_i;
-    assign pipeline_stall = stall_imem || stall_dmem;
-
     // =========================================================================
     // STAGE 1: FETCH (IF)
     // =========================================================================
@@ -370,7 +365,6 @@ module riscv_core (
 
     // Hazard Unit Instance
     hazard_detection_unit u_hazard_unit (
-        .global_stall_i (pipeline_stall),
         .id_ex_wb_sel   (id_ex_out.ctrl.wb_sel),
         .id_ex_rd       (id_ex_out.rd_addr),
         .if_id_rs1      (dec_rs1_addr),

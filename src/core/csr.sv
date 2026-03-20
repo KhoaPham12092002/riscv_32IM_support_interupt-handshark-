@@ -71,9 +71,7 @@ module csr (
             default:      csr_rdata_o = 32'b0; // Đọc địa chỉ lạ trả về 0
         endcase
     end
-
-// 3. LOGIC TÍNH TOÁN DỮ LIỆU GHI (Write Data Calculation)
-    logic [31:0] wdata_final;
+ [31:0] wdata_final;
     
     always_comb begin
         // Dựa vào giá trị hiện tại (csr_rdata_o) và dữ liệu mới (csr_req_i.wdata)
@@ -143,7 +141,6 @@ module csr (
                     CSR_MCAUSE:   mcause   <= wdata_final;
                     CSR_MTVAL:    mtval    <= wdata_final;
                     CSR_MSCRATCH: mscratch <= wdata_final;
-                    // MIP thường là Read-Only đối với Software (trừ Software Interrupt)
                 endcase
             end
         end

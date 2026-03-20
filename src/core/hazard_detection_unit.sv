@@ -3,7 +3,6 @@ import riscv_32im_pkg::*;
 
 module hazard_detection_unit (
     // Kiểm tra lệnh ở tầng EX có phải là lệnh LOAD không
-    input  logic       global_stall_i,
     input  logic [2:0] id_ex_wb_sel, 
     input  logic [4:0] id_ex_rd,
 
@@ -26,7 +25,6 @@ module hazard_detection_unit (
         // ĐIỀU KIỆN LOAD-USE HAZARD:
         // 1. Lệnh ở tầng EX đang đọc Memory (WB_MEM)
         // 2. VÀ Thanh ghi đích (RD) của lệnh Load trùng với RS1 hoặc RS2 của lệnh đang Decode
-        if (!global_stall_i) begin
         if ((id_ex_wb_sel == WB_MEM) && (id_ex_rd != 5'd0) && 
            ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2))) begin
             
@@ -35,5 +33,5 @@ module hazard_detection_unit (
             id_ex_flush_o = 1'b1; // Chèn NOP vào tầng EX (tạo bong bóng - bubble)
         end
     end
-    end 
+     
 endmodule

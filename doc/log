@@ -1,0 +1,4 @@
+20/3/2026
+  Sửa lỗi ưu tiên trong PC_gen ready_i > brach > nomal ( sau này để đóng băng cục bộ) 
+  Sửa lỗi FSM trong LSU : Thêm dmem_ready_i,( phân biệt với ready trong pipeline) modify shift để load và store thành case và thành load, store theo bit nhằm tối ưu area
+  sửa lại monitor trong LSU để bắt tín hiệu tốt và thêm phần score board để check lỗi ở đâu

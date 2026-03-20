@@ -60,6 +60,7 @@ class pc_random_seq extends uvm_sequence #(pc_item);
     task body();
         int dice;
         
+        
         repeat(5000) begin
             req = pc_item::type_id::create("req");
             start_item(req);
@@ -91,7 +92,6 @@ class pc_random_seq extends uvm_sequence #(pc_item);
             end
 
             // CASE 4: BRANCH OVERRIDE STALL (5% - CRITICAL)
-            // Đang Stall nhưng có Branch -> Phải nhảy (Ưu tiên Branch)
             else begin
                 req.ready = 0; // STALL REQUEST
                 req.branch_taken = 1; // BRANCH REQUEST
@@ -194,7 +194,7 @@ endclass
 // -----------------------------------------------------------------------------
 // 5. SCOREBOARD (STATEFUL PREDICTION)
 // -----------------------------------------------------------------------------
-class pc_scoreboard extends uvm_scoreboard;
+/*class pc_scoreboard extends uvm_scoreboard;
     `uvm_component_utils(pc_scoreboard)
     uvm_analysis_imp #(pc_item, pc_scoreboard) sb_export;
     
@@ -235,24 +235,35 @@ class pc_scoreboard extends uvm_scoreboard;
 
         // 2. CALCULATE NEXT PC (For next cycle check)
         // Logic: Trap > Branch > Stall > Sequential
+        // =======================================================
+        // 2. CALCULATE NEXT PC (Reference Model Logic)
+        // =======================================================
         
-        if (pkt.branch_taken) begin
-            next_expected = pkt.branch_target;
-            cnt_branch++;
-            if (pkt.ready == 0) begin
-                 cnt_override++; // Branch while Stall
-                 if (verbose) $display("       -> Branch Overriding Stall! Next:%h", next_expected);
+        // Ưu tiên 1: STALL (Ready = 0)
+        if (pkt.ready == 0) begin
+            next_expected = expected_pc; // Đứng im, không nhảy!
+            
+            if (pkt.branch_taken) begin
+                cnt_override++; 
+                current_eval = CASE_OVERRIDE; // Ghi nhận Case 4: Có Branch nhưng bị chặn
+            end else begin
+                cnt_stall++;    
+                current_eval = CASE_STALL;    // Ghi nhận Case 2: Stall bình thường
             end
         end 
-        else if (pkt.ready) begin
-            next_expected = expected_pc + 4;
-            cnt_seq_step++;
-        end 
+        
+        // Ưu tiên 2: READY (Ready = 1) -> Xử lý Branch hoặc Tuần tự
         else begin
-            // Stall active & No branch -> Keep PC
-            next_expected = expected_pc;
-            cnt_stall++;
-        end
+            if (pkt.branch_taken) begin
+                next_expected = pkt.branch_target;
+                cnt_branch++;
+                current_eval = CASE_BRANCH;   // Ghi nhận Case 3
+            end else begin
+                next_expected = expected_pc + 32'd4;
+                cnt_seq_step++;
+                current_eval = CASE_SEQ;      // Ghi nhận Case 1
+            end
+        end       
 
         // Update state for next cycle
         expected_pc = next_expected;
@@ -272,6 +283,133 @@ class pc_scoreboard extends uvm_scoreboard;
         if (cnt_override > 0)
              $display("[PASS] Logic 'Branch overrides Stall' verified successfully.");
         else $display("[WARN] Corner case 'Branch during Stall' NOT tested.");
+        $display("==================================================\n");
+    endfunction    
+endclass */
+// -----------------------------------------------------------------------------
+// 5. SCOREBOARD (STATEFUL PREDICTION & ERROR BINNING)
+// -----------------------------------------------------------------------------
+class pc_scoreboard extends uvm_scoreboard;
+    `uvm_component_utils(pc_scoreboard)
+    uvm_analysis_imp #(pc_item, pc_scoreboard) sb_export;
+    
+    // --- INTERNAL STATE ---
+    logic [31:0] expected_pc;
+    
+    // Enum để nhớ xem chu kỳ trước ta đã mong đợi điều kiện gì
+    typedef enum {CASE_SEQ, CASE_STALL, CASE_BRANCH, CASE_OVERRIDE} eval_case_e;
+    eval_case_e prev_case = CASE_SEQ; 
+
+    // --- STATISTICS (PASS) ---
+    int cnt_seq_step  = 0; 
+    int cnt_stall     = 0; 
+    int cnt_branch    = 0; 
+    int cnt_override  = 0; 
+
+    // --- STATISTICS (FAIL) ---
+    int fail_seq      = 0;
+    int fail_stall    = 0;
+    int fail_branch   = 0;
+    int fail_override = 0;
+
+    bit verbose = 0; 
+
+    function new(string name, uvm_component parent); super.new(name, parent); endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+        sb_export = new("sb_export", this);
+        if ($test$plusargs("VERBOSE")) verbose = 1;
+        expected_pc = 32'h0; 
+    endfunction
+
+    function void write(pc_item pkt);
+        logic [31:0] next_expected;
+        eval_case_e  current_eval;
+
+        // =======================================================
+        // 1. COMPARE CURRENT PC & BINNING ERRORS
+        // =======================================================
+        if (pkt.current_pc !== expected_pc) begin
+            `uvm_error("FAIL", $sformatf("Mismatch! Exp:%h Act:%h | Inputs:[Rdy:%b Br:%b]", 
+                expected_pc, pkt.current_pc, pkt.ready, pkt.branch_taken))
+            
+            // Ghi nhận lỗi vào đúng Case đã được đánh giá ở cycle trước
+            case (prev_case)
+                CASE_SEQ:      fail_seq++;
+                CASE_STALL:    fail_stall++;
+                CASE_BRANCH:   fail_branch++;
+                CASE_OVERRIDE: fail_override++;
+            endcase
+        end else begin
+            if (verbose) $display("[PASS] PC:%h", pkt.current_pc);
+        end
+
+        // =======================================================
+        // 2. CALCULATE NEXT PC & DETERMINE CASE (For next cycle)
+        // =======================================================
+        // Ưu tiên 1: STALL (Ready = 0)
+        if (pkt.ready == 0) begin
+            next_expected = expected_pc; // Đứng im, không nhảy!
+            
+            if (pkt.branch_taken) begin
+                cnt_override++; 
+                current_eval = CASE_OVERRIDE; // Ghi nhận Case 4: Có Branch nhưng bị chặn
+            end else begin
+                cnt_stall++;    
+                current_eval = CASE_STALL;    // Ghi nhận Case 2: Stall bình thường
+            end
+        end 
+        
+        // Ưu tiên 2: READY (Ready = 1) -> Xử lý Branch hoặc Tuần tự
+        else begin
+            if (pkt.branch_taken) begin
+                next_expected = pkt.branch_target;
+                cnt_branch++;
+                current_eval = CASE_BRANCH;   // Ghi nhận Case 3
+            end else begin
+                next_expected = expected_pc + 32'd4;
+                cnt_seq_step++;
+                current_eval = CASE_SEQ;      // Ghi nhận Case 1
+            end
+        end       
+
+
+        // Update state for next cycle
+        expected_pc = next_expected;
+        prev_case   = current_eval;
+    endfunction
+
+
+    function void report_phase(uvm_phase phase);
+        int total_fails = fail_seq + fail_stall + fail_branch + fail_override;
+
+        $display("\n==================================================");
+        $display("         PC GEN VERIFICATION REPORT               ");
+        $display("==================================================");
+        $display("Total Cycles Checked     : %0d", cnt_seq_step + cnt_stall + cnt_branch + cnt_override);
+        $display("--------------------------------------------------");
+        $display("FAIL SUMMARY:");
+        $display("Case 1 (Sequential)      : %0d Fails", fail_seq);
+        $display("Case 2 (Stall)           : %0d Fails", fail_stall);
+        $display("Case 3 (Branch Taken)    : %0d Fails", fail_branch);
+        $display("Case 4 (Override Stall)  : %0d Fails", fail_override);
+        $display("--------------------------------------------------");
+        $display("==================================================");
+        $display("Total Cycles Checked     : %0d", cnt_seq_step + cnt_stall + cnt_branch + cnt_override);
+        $display("--------------------------------------------------");
+        $display("Sequential Steps (+4)    : %0d", cnt_seq_step);
+        $display("Stall Cycles (Hold PC)   : %0d", cnt_stall);
+        $display("Branch Jumps Taken       : %0d", cnt_branch);
+        $display("Branch Override Stall    : %0d (CRITICAL CHECK)", cnt_override);
+        $display("--------------------------------------------------");
+        if (cnt_override > 0)
+             $display("[PASS] Logic 'Branch overrides Stall' verified successfully.");
+        else $display("[WARN] Corner case 'Branch during Stall' NOT tested.");
+        $display("==================================================\n");
+        if (total_fails == 0)
+             $display("[PASSED] ALL CASES VERIFIED SUCCESSFULLY.");
+        else $display("[FAILED] TEST FINISHED WITH %0d ERRORS.", total_fails);
         $display("==================================================\n");
     endfunction    
 endclass

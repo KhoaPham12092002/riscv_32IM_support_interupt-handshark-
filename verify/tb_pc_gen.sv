@@ -18,12 +18,10 @@ module tb_pc_gen;
     logic [31:0] pc_o;
 
     // Tham số
-    parameter BOOT_ADDR = 32'h8000_0000; // Giả sử boot từ 0x80000000
+    parameter BOOT_ADDR = 32'h0000_0000; // Giả sử boot từ 0x80000000
 
     // 2. Instantiate DUT (Device Under Test)
-    pc_gen #(
-        .BOOT_ADDR(BOOT_ADDR)
-    ) dut (
+    pc_gen  dut (
         .clk_i                (clk),
         .rst_i                (rst),
         .ready_i              (ready_i),
@@ -41,7 +39,7 @@ module tb_pc_gen;
 
     // 4. Kịch bản Test (Main Stimulus)
     initial begin
-        // --- GIAI ĐOẠN 1: KHỞI TẠO & RESET ---
+        // --- PHASE 1: INIT & RESET ---
         $display("=========================================================");
         $display("[TEST START] Checking PC_GEN Behavior...");
         rst = 1;
@@ -59,7 +57,7 @@ module tb_pc_gen;
         else 
             $display("[PASS] Reset OK. PC = %h", pc_o);
 
-        // --- GIAI ĐOẠN 2: CHẠY TUẦN TỰ (NORMAL FETCH) ---
+        // --- PHASE 2: (NORMAL FETCH) ---
         $display("--- Test Case 2: Sequential Fetch (PC+4) ---");
         ready_i = 1; // Hệ thống sẵn sàng
         
@@ -69,7 +67,7 @@ module tb_pc_gen;
         @(posedge clk); #1; // PC: 8000_0004 -> 8000_0008
         check_pc(BOOT_ADDR + 8);
 
-        // --- GIAI ĐOẠN 3: TEST STALL (TẮC ĐƯỜNG) ---
+        // --- PHASE 3: TEST STALL (TẮC ĐƯỜNG) ---
         $display("--- Test Case 3: Pipeline Stall (Ready=0) ---");
         ready_i = 0; // Giả lập pipeline phía sau bị tắc
         
@@ -81,7 +79,7 @@ module tb_pc_gen;
         @(posedge clk); #1;
         check_pc(BOOT_ADDR + 8); // Vẫn phải đứng im
 
-        // --- GIAI ĐOẠN 4: TEST BRANCH (NHẢY) ---
+        // --- PHASE 4: TEST BRANCH (NHẢY) ---
         $display("--- Test Case 4: Branch Taken ---");
         ready_i = 1; // Hết tắc
         branch_taken_i = 1;
@@ -95,11 +93,8 @@ module tb_pc_gen;
         @(posedge clk); #1;
         check_pc(32'h9000_0004);
 
-        // --- GIAI ĐOẠN 5: TEST BRANCH + STALL (TÌNH HUỐNG KHÓ) ---
-        // Lưu ý: Logic RTL hiện tại yêu cầu ready_i=1 để cập nhật PC.
-        // Controller thực tế sẽ ép ready_i=1 khi có Branch.
-        // Ở đây ta test xem nếu ready_i=0 thì Branch có bị ignore không (đúng logic RTL).
-        $display("--- Test Case 5: Branch while Stall (Ready=0) ---");
+        // --- PHASE 5: TEST BRANCH + STALL (TÌNH HUỐNG KHÓ) ---
+
         ready_i = 0;
         branch_taken_i = 1;
         branch_target_addr_i = 32'hAAAA_BBBB;

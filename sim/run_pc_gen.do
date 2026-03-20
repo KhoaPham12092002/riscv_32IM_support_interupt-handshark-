@@ -1,12 +1,3 @@
-# =============================================================================
-# UNIVERSAL RISC-V RUN SCRIPT FOR LSU (LOAD STORE UNIT)
-# =============================================================================
-# NOTES FOR AI:
-# 1. Do NOT change directory variables (matched to user's environment).
-# 2. FILL the "COMPILE USER CODE" section with new modules when implementing.
-# 3. Always keep +define+UVM_NO_DPI and -voptargs="+acc".
-# =============================================================================
-
 # 1. SETUP PATHS (FIXED)
 set SRC_DIR   "../src"
 set VERIF_DIR "../verify/UVM/core"

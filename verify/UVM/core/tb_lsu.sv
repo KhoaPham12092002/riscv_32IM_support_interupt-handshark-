@@ -33,6 +33,7 @@ interface lsu_if(input logic clk);
     logic [31:0] dmem_wdata_o;
     logic [3:0]  dmem_be_o;
     logic        dmem_we_o;
+    logic        dmem_ready_i;
     logic [31:0] dmem_rdata_i; // Mock Memory Data
 endinterface
 
@@ -41,6 +42,7 @@ endinterface
 // -----------------------------------------------------------------------------
 class lsu_item extends uvm_sequence_item;
     // --- INPUTS ---
+    
     rand logic [31:0] addr;
     rand logic [31:0] wdata;
     rand logic        we;      // 0: Load, 1: Store
@@ -49,6 +51,7 @@ class lsu_item extends uvm_sequence_item;
     // --- MOCK MEMORY INPUT ---
     // Giả lập dữ liệu có sẵn trong RAM tại địa chỉ đó
     rand logic [31:0] mock_mem_data; 
+    int dmem_delay;
 
     // --- OUTPUTS (OBSERVED) ---
     logic [31:0] actual_rdata;
@@ -121,6 +124,7 @@ class lsu_random_seq extends uvm_sequence #(lsu_item);
             req.wdata         = get_biased_data();
             req.mock_mem_data = get_biased_data(); // Dữ liệu giả định trong RAM
             req.funct3        = get_rand_funct3(req.we);
+            req.dmem_delay    = $urandom_range(0, 5); // tạo độ trễ ngẫu nhiên
             
             finish_item(req);
         end
@@ -147,6 +151,7 @@ class lsu_driver extends uvm_driver #(lsu_item);
         vif.valid_i      <= 0;
         vif.ready_i      <= 1; // Core luôn sẵn sàng nhận kết quả trả về
         vif.dmem_rdata_i <= 0;
+        vif.dmem_ready_i <= 0;
         
         @(posedge vif.clk);
         vif.rst_i <= 0;
@@ -164,18 +169,41 @@ class lsu_driver extends uvm_driver #(lsu_item);
             vif.wdata_i      <= req.wdata;
             vif.lsu_we_i     <= req.we;
             vif.funct3_i     <= req.funct3;
+            vif.dmem_ready_i <= 0;
             
-            // Cung cấp dữ liệu giả lập cho DMEM (để Load path có cái mà đọc)
-            vif.dmem_rdata_i <= req.mock_mem_data;
-
             // --- 2. HANDSHAKE DONE ---
             @(posedge vif.clk);
             vif.valid_i <= 0; // Xả valid
+// --- 2. XỬ LÝ SONG SONG (MEMORY MOCK & WAITING DONE) ---
+            fork
+                // THREAD 1: Đóng vai Data Memory
+                begin : memory_behavior_thread
+                    // Chờ một khoảng delay được config từ Sequence
+                    repeat(req.dmem_delay) @(posedge vif.clk);
+                    
+                    // Phản hồi dữ liệu và chớp cờ Ready
+                    vif.dmem_rdata_i <= req.mock_mem_data;
+                    vif.dmem_ready_i <= 1;
+                    
+                    @(posedge vif.clk);
+                    vif.dmem_ready_i <= 0; // Handshake xong thì xả cờ
+                    
+                    // Đóng băng thread này, chờ thread 2 dọn dẹp
+                    forever @(posedge vif.clk); 
+                end
+                
+                // THREAD 2: Đóng vai CPU chờ kết quả
+                begin : wait_lsu_done_thread
+                    // Dùng wait() để bắt ngay khoảnh khắc valid_o lên 1 (combinational)
+                    wait (vif.valid_o === 1'b1);
+                end
+            join_any // Ngay khi 1 trong 2 thread kết thúc (thường là Thread 2), đi tiếp!
             
-            // Chờ LSU trả kết quả (FSM: IDLE -> WAIT -> DONE)
-            // Trong DUT: valid_o bật khi state == DONE
-            while (vif.valid_o !== 1) @(posedge vif.clk);
+            // Lệnh HỦY: Nếu rơi vào Misaligned Trap, Thread 2 xong trước.
+            // Ta phải "giết" Thread 1 đang bị kẹt trong lúc delay để dọn dẹp cho cycle sau.
+            disable fork; 
 
+            // Kết thúc transaction
             seq_item_port.item_done();
         end
     endtask
@@ -199,7 +227,7 @@ class lsu_monitor extends uvm_monitor;
         if(!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif)) `uvm_fatal("MON", "No IF")
     endfunction
 
-    task run_phase(uvm_phase phase);
+    /* task run_phase(uvm_phase phase);
         forever begin
             @(posedge vif.clk);
             #1;
@@ -234,6 +262,53 @@ class lsu_monitor extends uvm_monitor;
                 end
             end
         end
+    endtask */
+    task run_phase(uvm_phase phase);
+        forever begin
+            @(posedge vif.clk);
+            #1; // Delay 1ns để chờ logic tổ hợp tính toán xong
+
+            // --- BƯỚC 1: BẮT ĐẦU TRANSACTION (Tại state IDLE) ---
+            if (vif.valid_i && vif.ready_o) begin
+                pending_item = lsu_item::type_id::create("pkt");
+                pending_item.addr   = vif.addr_i;
+                pending_item.wdata  = vif.wdata_i;
+                pending_item.we     = vif.lsu_we_i;
+                pending_item.funct3 = vif.funct3_i;
+                
+                // Reset các giá trị output memory để chuẩn bị bắt
+                pending_item.actual_dmem_we = 0; 
+            end
+
+            // --- BƯỚC 2: THEO DÕI QUÁ TRÌNH (Tại state WAIT_MEM) ---
+            if (pending_item != null) begin
+                
+                // Chụp tín hiệu Store xuất ra Memory (Lấy giá trị khi nó đang bật)
+                if (vif.dmem_we_o) begin
+                    pending_item.actual_dmem_we    = vif.dmem_we_o;
+                    pending_item.actual_dmem_wdata = vif.dmem_wdata_o;
+                    pending_item.actual_dmem_be    = vif.dmem_be_o;
+                end
+
+                // CHỤP DỮ LIỆU LOAD: Chỉ chụp đúng vào khoảnh khắc Memory báo Ready!
+                if (vif.dmem_ready_i) begin
+                    pending_item.mock_mem_data = vif.dmem_rdata_i;
+                end
+            end
+
+            // --- BƯỚC 3: KẾT THÚC TRANSACTION (Tại state DONE) ---
+            if (vif.valid_o) begin
+                if (pending_item != null) begin
+                    // Chụp kết quả trả về cho CPU Pipeline
+                    pending_item.actual_rdata = vif.lsu_rdata_o;
+                    pending_item.actual_err   = vif.lsu_err_o;
+                    
+                    // Gửi trọn gói dữ liệu sạch sẽ sang Scoreboard
+                    mon_ap.write(pending_item);
+                    pending_item = null; // Xóa packet để sẵn sàng cho lệnh tiếp theo
+                end
+            end
+        end
     endtask
 endclass
 
@@ -244,14 +319,20 @@ class lsu_scoreboard extends uvm_scoreboard;
     `uvm_component_utils(lsu_scoreboard)
     uvm_analysis_imp #(lsu_item, lsu_scoreboard) sb_export;
     
-    // --- STATISTICS ---
+    // --- STATISTICS (PASS) ---
     int cnt_load       = 0;
     int cnt_store      = 0;
     int cnt_misaligned = 0;
     int cnt_byte       = 0;
     int cnt_half       = 0;
     int cnt_word       = 0;
-    int cnt_pass       = 0;
+
+    // --- STATISTICS (FAIL BINS) ---
+    int fail_misaligned = 0; // Lỗi sai cờ Trap
+    int fail_load_data  = 0; // Lỗi sai dữ liệu đọc về (Sign extension/Alignment)
+    int fail_store_we   = 0; // Lỗi mất tín hiệu dmem_we_o
+    int fail_store_be   = 0; // Lỗi sai dmem_be_o (Byte Enable)
+    int fail_store_data = 0; // Lỗi sai dmem_wdata_o (Shift data)
 
     bit verbose = 0; 
 
@@ -263,9 +344,7 @@ class lsu_scoreboard extends uvm_scoreboard;
         if ($test$plusargs("VERBOSE")) verbose = 1;
     endfunction
 
-    // --- GOLDEN MODEL FUNCTIONS ---
-
-    // 1. Check Misaligned
+    // --- GOLDEN MODEL FUNCTIONS (Giữ nguyên logic cực tốt của bạn) ---
     function bit check_misaligned(logic [31:0] addr, logic [2:0] funct3);
         case (funct3)
             3'b010: return (addr[1:0] != 0);    // LW, SW (Align 4)
@@ -274,13 +353,9 @@ class lsu_scoreboard extends uvm_scoreboard;
         endcase
     endfunction
 
-    // 2. Predict Load Data (Sign Extension Logic)
     function logic [31:0] predict_load(lsu_item pkt);
         logic [31:0] aligned_data;
-        logic [1:0]  offset;
-        offset = pkt.addr[1:0];
-        
-        // Dịch dữ liệu thô xuống bit 0 (Mô phỏng: raw >> offset*8)
+        logic [1:0]  offset = pkt.addr[1:0];
         aligned_data = pkt.mock_mem_data >> (offset * 8);
 
         case (pkt.funct3)
@@ -293,12 +368,9 @@ class lsu_scoreboard extends uvm_scoreboard;
         endcase
     endfunction
 
-    // 3. Predict Store (Data Shifting & BE)
     function void predict_store(lsu_item pkt, output logic [31:0] exp_wdata, output logic [3:0] exp_be);
         logic [1:0] offset = pkt.addr[1:0];
-        
         exp_wdata = pkt.wdata << (offset * 8);
-        
         case (pkt.funct3)
             3'b000: exp_be = 4'b0001 << offset; // SB
             3'b001: exp_be = 4'b0011 << offset; // SH
@@ -307,82 +379,102 @@ class lsu_scoreboard extends uvm_scoreboard;
         endcase
     endfunction
 
-    // --- MAIN CHECK LOGIC ---
+    // --- MAIN CHECK LOGIC (Đã thêm Tracking Bins) ---
     function void write(lsu_item pkt);
-        string msg;
-        bit    expected_err;
+        bit          expected_err;
         logic [31:0] expected_rdata;
         logic [31:0] expected_dmem_wdata;
         logic [3:0]  expected_dmem_be;
 
         // 1. Check Alignment
         expected_err = check_misaligned(pkt.addr, pkt.funct3);
-
         if (pkt.actual_err !== expected_err) begin
-            `uvm_error("FAIL", $sformatf("Misaligned Check Fail! Addr:%h F3:%b ExpErr:%b ActErr:%b", 
+            fail_misaligned++;
+            `uvm_error("FAIL_MISALIGNED", $sformatf("Addr:%h F3:%b ExpErr:%b ActErr:%b", 
                 pkt.addr, pkt.funct3, expected_err, pkt.actual_err))
         end
 
-        // 2. If Error -> Stop checking data
-        if (expected_err) begin
+        // Nếu có lỗi Alignment (hoặc kỳ vọng có lỗi), FSM sẽ drop lệnh, dừng check Data.
+        if (expected_err || pkt.actual_err) begin
             cnt_misaligned++;
-            if (verbose) $display("[PASS] Misaligned Trap Caught: Addr %h", pkt.addr);
-            return;
+            return; 
         end
 
-        // 3. Check LOAD
+        // 2. Check LOAD
         if (pkt.we == 0) begin
             expected_rdata = predict_load(pkt);
             if (pkt.actual_rdata !== expected_rdata) begin
-                `uvm_error("FAIL", $sformatf("[LOAD] Data Mismatch! Addr:%h F3:%b Mem:%h Exp:%h Act:%h",
+                fail_load_data++;
+                `uvm_error("FAIL_LOAD", $sformatf("Addr:%h F3:%b Mem:%h Exp:%h Act:%h",
                     pkt.addr, pkt.funct3, pkt.mock_mem_data, expected_rdata, pkt.actual_rdata))
-            end else if (verbose) begin
-                $display("[PASS] LOAD Addr:%h | Type:%b | Val:%h", pkt.addr, pkt.funct3, pkt.actual_rdata);
+            end else begin
+                cnt_load++;
             end
-            cnt_load++;
         end 
         
-        // 4. Check STORE
+        // 3. Check STORE
         else begin
             predict_store(pkt, expected_dmem_wdata, expected_dmem_be);
             
-            if (pkt.actual_dmem_we !== 1) `uvm_error("FAIL", "[STORE] DMEM WE should be 1")
-            
-            if (pkt.actual_dmem_be !== expected_dmem_be) 
-                `uvm_error("FAIL", $sformatf("[STORE] BE Mismatch! Addr:%h F3:%b ExpBE:%b ActBE:%b",
-                    pkt.addr, pkt.funct3, expected_dmem_be, pkt.actual_dmem_be))
-            
-            if (pkt.actual_dmem_wdata !== expected_dmem_wdata)
-                `uvm_error("FAIL", $sformatf("[STORE] WData Mismatch! Addr:%h Data:%h Exp:%h Act:%h",
-                    pkt.addr, pkt.wdata, expected_dmem_wdata, pkt.actual_dmem_wdata))
-
-            else if (verbose) begin
-                $display("[PASS] STORE Addr:%h | Type:%b | BE:%b | Data:%h", pkt.addr, pkt.funct3, pkt.actual_dmem_be, pkt.actual_dmem_wdata);
+            // Lỗi 3a: Mất cờ Write Enable ra DMEM
+            if (pkt.actual_dmem_we !== 1) begin
+                fail_store_we++;
+                `uvm_error("FAIL_STORE_WE", "DMEM WE is 0, should be 1 (Signal Dropped!)")
             end
-            cnt_store++;
+            
+            // Lỗi 3b: Sai Byte Enable
+            if (pkt.actual_dmem_be !== expected_dmem_be) begin
+                fail_store_be++;
+                `uvm_error("FAIL_STORE_BE", $sformatf("Addr:%h F3:%b ExpBE:%b ActBE:%b",
+                    pkt.addr, pkt.funct3, expected_dmem_be, pkt.actual_dmem_be))
+            end
+            
+            // Lỗi 3c: Sai dữ liệu Shift
+            if (pkt.actual_dmem_wdata !== expected_dmem_wdata) begin
+                fail_store_data++;
+                `uvm_error("FAIL_STORE_DATA", $sformatf("Addr:%h Data:%h Exp:%h Act:%h",
+                    pkt.addr, pkt.wdata, expected_dmem_wdata, pkt.actual_dmem_wdata))
+            end
+
+            // Chỉ cộng pass khi không dính lỗi Store nào
+            if (pkt.actual_dmem_we === 1 && pkt.actual_dmem_be === expected_dmem_be && pkt.actual_dmem_wdata === expected_dmem_wdata) begin
+                cnt_store++;
+            end
         end
 
-        // Stats
+        // Thống kê kích thước truy cập
         case(pkt.funct3)
             3'b000, 3'b100: cnt_byte++;
             3'b001, 3'b101: cnt_half++;
             3'b010:         cnt_word++;
         endcase
-        cnt_pass++;
     endfunction
 
     function void report_phase(uvm_phase phase);
+        int total_fails = fail_misaligned + fail_load_data + fail_store_we + fail_store_be + fail_store_data;
+        int total_passes = cnt_load + cnt_store + cnt_misaligned;
+
         $display("\n==================================================");
         $display("           LSU VERIFICATION REPORT                ");
         $display("==================================================");
-        $display("Total Transactions   : %0d", cnt_pass + cnt_misaligned);
-        $display("Load Operations      : %0d", cnt_load);
-        $display("Store Operations     : %0d", cnt_store);
-        $display("Misaligned Traps     : %0d", cnt_misaligned);
+        $display("Total Transactions Processed : %0d", total_passes + total_fails);
         $display("--------------------------------------------------");
-        $display("Byte Accesses (8-bit): %0d", cnt_byte);
-        $display("Half Accesses (16b)  : %0d", cnt_half);
-        $display("Word Accesses (32b)  : %0d", cnt_word);
+        $display("PASS SUMMARY:");
+        $display("  [+] Load Passed            : %0d", cnt_load);
+        $display("  [+] Store Passed           : %0d", cnt_store);
+        $display("  [+] Misaligned Trap Passed : %0d", cnt_misaligned);
+        $display("--------------------------------------------------");
+        $display("FAIL SUMMARY (ERROR BINS):");
+        $display("  [-] Misaligned Logic Fails : %0d", fail_misaligned);
+        $display("  [-] Load Data Fails        : %0d", fail_load_data);
+        $display("  [-] Store WE Dropped Fails : %0d", fail_store_we);
+        $display("  [-] Store Byte Enable Fails: %0d", fail_store_be);
+        $display("  [-] Store Write Data Fails : %0d", fail_store_data);
+        $display("==================================================");
+        
+        if (total_fails == 0)
+             $display(">>> FINAL STATUS: [PASSED] PERFECT MATCH! <<<");
+        else $display(">>> FINAL STATUS: [FAILED] %0d ERRORS FOUND! <<<", total_fails);
         $display("==================================================\n");
     endfunction    
 endclass
@@ -458,7 +550,8 @@ module tb_top;
         .dmem_wdata_o(vif.dmem_wdata_o),
         .dmem_be_o   (vif.dmem_be_o),
         .dmem_we_o   (vif.dmem_we_o),
-        .dmem_rdata_i(vif.dmem_rdata_i)
+        .dmem_rdata_i(vif.dmem_rdata_i),
+        .dmem_ready_i (vif.dmem_ready_i)
     );
 
     initial begin

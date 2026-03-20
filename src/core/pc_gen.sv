@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-import riscv_32im_pkg::*;
+//import riscv_32im_pkg::*;
 module pc_gen (
     input  logic        clk_i,
     input  logic        rst_i,
@@ -15,7 +15,7 @@ module pc_gen (
     input  logic [31:0] branch_target_addr_i, // Địa chỉ đích của lệnh nhảy
 
     // --- Trap/Interrupt Interface (Placeholder for Future) ---
-    // Mở comment phần này khi em làm xong CSR/Controller
+    // Mở comment phần này khi làm xong CSR/Controller
     /*
     input  logic        trap_taken_i,         // 1 = Có ngắt hoặc ngoại lệ (Trap/Interrupt)
     input  logic [31:0] trap_target_addr_i,   // Địa chỉ vector ngắt (mtvec)
@@ -67,7 +67,7 @@ module pc_gen (
             // ƯU TIÊN TUYỆT ĐỐI: Nếu có lệnh nhảy (branch_taken), 
             // bắt buộc cập nhật PC ngay lập tức, bỏ qua mọi lý do trì hoãn (ready_i).
             // Nếu không nhảy, thì mới tuân thủ luật Handshake (ready_i).
-            if (branch_taken_i || ready_i) begin 
+            if (ready_i) begin 
                 pc_q <= pc_next;
             end
         end

@@ -19,6 +19,7 @@ module lsu (
     output logic [3:0]  dmem_be_o,
     output logic        dmem_we_o,
     input  logic [31:0] dmem_rdata_i,
+    input logic         dmem_ready_i,
 
     // Writeback to Core (Load Data)
     output logic [31:0] lsu_rdata_o,
@@ -71,7 +72,7 @@ module lsu (
         if (rst_i) begin
             state <= IDLE;
             addr_q <= 32'b0;
-            funct3_q <= 1'b0;
+            funct3_q <= 3'b0;
             we_q <= 1'b0;
             misaligned_trap_q <= 1'b0;
         end else begin 
@@ -92,7 +93,7 @@ module lsu (
                     end
                 end
                 WAIT_MEM : begin
-                    state <= DONE ;
+                    if (dmem_ready_i)    state <= DONE ;
                 end
                 DONE : begin
                     if (ready_i) begin
@@ -115,11 +116,18 @@ module lsu (
     assign trigger_access = (state == IDLE) && valid_i && !misaligned;
     
     // DMEM Write Enable:
-    assign dmem_we_o = trigger_access & lsu_we_i;
+    assign dmem_we_o = trigger_access & ((state == IDLE) ? lsu_we_i : we_q);
     
     // DMEM Write Data: Dịch dữ liệu đến đúng ngăn
-    assign dmem_wdata_o = wdata_i << (effective_offset * 8);
-    
+        always_comb begin
+        dmem_wdata_o = 32'b0;
+        case (effective_offset)
+            2'b00: dmem_wdata_o = wdata_i;
+            2'b01: dmem_wdata_o = {8'b0, wdata_i[23:0], 8'b0};
+            2'b10: dmem_wdata_o = {16'b0, wdata_i[15:0], 16'b0};
+            2'b11: dmem_wdata_o = {24'b0, wdata_i[7:0], 24'b0};
+        endcase
+        end
     // DMEM Byte Enable
     always_comb begin
         dmem_be_o = 4'b0000;
@@ -144,38 +152,32 @@ module lsu (
 
 // 2. LOAD PATH (MEM -> CPU)
     
-    logic [31:0] raw_rdata;
-    logic [31:0] shifted_raw_data;
-
-    assign raw_rdata =dmem_rdata_i;
-    assign shifted_raw_data = raw_rdata >> (addr_q[1:0]*8);
+   logic [31:0] aligned_rdata;
 
     always_comb begin
+        aligned_rdata = 32'b0;
+        case (addr_q[1:0])
+            2'b00: aligned_rdata = dmem_rdata_i;
+            2'b01: aligned_rdata = {8'b0, dmem_rdata_i[31:8]};
+            2'b10: aligned_rdata = {16'b0, dmem_rdata_i[31:16]};
+            2'b11: aligned_rdata = {24'b0, dmem_rdata_i[31:24]};
+        endcase
+    end
+        always_comb begin
         lsu_rdata_o = 32'b0;
         if (state == DONE && !misaligned_trap_q && !we_q) begin
-	    case (funct3_q)
-                 3'b000: begin // LB (Store Byte)
-                 lsu_rdata_o = { {24{shifted_raw_data[7]}}, shifted_raw_data[7:0] };
-                 end
-		  3'b100: begin // LB (Store Byte)
-                  lsu_rdata_o = { 24'b0, shifted_raw_data[7:0] };
-                 end
-
-                 3'b001: begin // LH (Store Half)
-		 lsu_rdata_o = { {16{shifted_raw_data[15]}}, shifted_raw_data[15:0] };
-                 end
-		 3'b101: begin // LH (Store Half)
-		 lsu_rdata_o = { 16'b0, shifted_raw_data[15:0] };
-                 end
-
-                 3'b010: begin // LW (Store Word)
-                  lsu_rdata_o = dmem_rdata_i ;
-                 end
-
-                 default: lsu_rdata_o = 32'b0;
-        endcase
+            case (funct3_q)
+                3'b000: lsu_rdata_o = {{24{aligned_rdata[7]}}, aligned_rdata[7:0]};   // LB
+                3'b100: lsu_rdata_o = {24'b0, aligned_rdata[7:0]};                    // LBU
+                3'b001: lsu_rdata_o = {{16{aligned_rdata[15]}}, aligned_rdata[15:0]}; // LH
+                3'b101: lsu_rdata_o = {16'b0, aligned_rdata[15:0]};                   // LHU
+                3'b010: lsu_rdata_o = dmem_rdata_i;                                   // LW
+                default: lsu_rdata_o = 32'b0;
+            endcase
         end
-    end
+        end
+
+    
 // OUTPUT HANDSHAKE LOGIC
     assign valid_o = (state == DONE);
     assign ready_o = (state == IDLE);

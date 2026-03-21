@@ -183,37 +183,136 @@ class decoder_monitor extends uvm_monitor;
     endtask
 endclass
 
+
 // -----------------------------------------------------------------------------
-// 5. SCOREBOARD (PRO REPORTING & CHECKING)
+// 5. SCOREBOARD (GOLDEN MODEL & TABLE-DRIVEN VERIFICATION - FINAL PRO VERSION)
 // -----------------------------------------------------------------------------
 class decoder_scoreboard extends uvm_scoreboard;
     `uvm_component_utils(decoder_scoreboard)
     uvm_analysis_imp #(decoder_item, decoder_scoreboard) sb_export;
     
-    // --- BIẾN THỐNG KÊ ---
-    int instr_count[string]; // Map để đếm tên lệnh: "ADD" -> 50 lần
+    // --- GOLDEN MODEL LOOK-UP TABLE ---
+    dec_out_t expected_table[string];
     
+    // --- BIẾN THỐNG KÊ ---
+    int instr_count[string];
+    int fail_counts[string];
     int cnt_total   = 0;
-    int cnt_illegal = 0;
-    int cnt_rf_write = 0;
-    int cnt_mem_req  = 0;
-    int cnt_br_jump  = 0;
-
-    // --- BIẾN ĐIỀU KHIỂN LOG ---
-    bit verbose = 0; 
+    int cnt_pass    = 0;
+    int cnt_fail    = 0;
+    bit verbose     = 0; 
 
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         sb_export = new("sb_export", this);
-        if ($test$plusargs("VERBOSE")) begin
-            verbose = 1;
-            `uvm_info("SCB", "DEBUG MODE: ENABLED", UVM_LOW)
+        if ($test$plusargs("VERBOSE")) verbose = 1;
+        
+        build_golden_table();
+    endfunction
+
+    // =========================================================================
+    // 1. HÀM XÂY DỰNG BẢNG GOLDEN (100% FULL INSTRUCTION SET)
+    // =========================================================================
+    function void build_golden_table();
+        dec_out_t def_ctrl; 
+        dec_out_t ctrl;
+        
+        string r_type_ops[]   = {"ADD", "SUB", "AND", "OR", "XOR", "SLL", "SRL", "SRA", "SLT", "SLTU"};
+        alu_op_e r_type_alu[] = {ALU_ADD, ALU_SUB, ALU_AND, ALU_OR, ALU_XOR, ALU_SLL, ALU_SRL, ALU_SRA, ALU_SLT, ALU_SLTU};
+        string i_type_ops[]   = {"ADDI", "ANDI", "ORI", "XORI", "SLLI", "SRLI", "SRAI", "SLTI", "SLTIU"};
+        alu_op_e i_type_alu[] = {ALU_ADD, ALU_AND, ALU_OR, ALU_XOR, ALU_SLL, ALU_SRL, ALU_SRA, ALU_SLT, ALU_SLTU};
+        string load_ops[]  = {"LB", "LH", "LW", "LBU", "LHU"};
+        string store_ops[] = {"SB", "SH", "SW"};
+        string br_ops[] = {"BEQ", "BNE", "BLT", "BGE", "BLTU", "BGEU"};
+        br_op_e br_req_op[] = {BR_BEQ, BR_BNE, BR_BLT, BR_BGE, BR_BLTU, BR_BGEU};
+        string u_type_ops[] = {"LUI", "AUIPC"};
+        string muldiv_ops[]   = {"MUL", "MULH", "MULHSU", "MULHU", "DIV", "DIVU", "REM", "REMU"};
+        m_op_e muldiv_req_op[] = {M_MUL, M_MULH, M_MULHSU, M_MULHU, M_DIV, M_DIVU, M_REM, M_REMU};
+        string csr_ops[]      = {"CSRRW", "CSRRS", "CSRRC", "CSRRWI", "CSRRSI", "CSRRCI"};
+        csr_op_e csr_req_op[] = {CSR_RW, CSR_RS, CSR_RC, CSR_RW, CSR_RS, CSR_RC};
+
+        def_ctrl.illegal_instr = 0; def_ctrl.is_mret = 0; def_ctrl.is_ecall = 0; def_ctrl.is_ebreak = 0;
+        def_ctrl.imm_type = IMM_I;  def_ctrl.rf_we = 0;   def_ctrl.wb_sel = WB_ALU;
+        def_ctrl.alu_req = ALU_REQ_RST; def_ctrl.m_req = M_REQ_RST; 
+        def_ctrl.lsu_req = LSU_REQ_RST; def_ctrl.br_req = BR_REQ_RST; def_ctrl.csr_req = CSR_REQ_RST;
+
+        foreach(r_type_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_Z; ctrl.rf_we = 1; ctrl.wb_sel = WB_ALU;
+            ctrl.alu_req.op = r_type_alu[i]; ctrl.alu_req.op_a_sel = OP_A_RS1; ctrl.alu_req.op_b_sel = OP_B_RS2;
+            expected_table[r_type_ops[i]] = ctrl;
+        end
+
+        foreach(i_type_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_I; ctrl.rf_we = 1; ctrl.wb_sel = WB_ALU;
+            ctrl.alu_req.op = i_type_alu[i]; ctrl.alu_req.op_a_sel = OP_A_RS1; ctrl.alu_req.op_b_sel = OP_B_IMM;
+            expected_table[i_type_ops[i]] = ctrl;
+        end
+
+        foreach(load_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_I; ctrl.rf_we = 1; ctrl.wb_sel = WB_MEM;
+            ctrl.alu_req.op = ALU_ADD; ctrl.alu_req.op_a_sel = OP_A_RS1; ctrl.alu_req.op_b_sel = OP_B_IMM;
+            ctrl.lsu_req.re = 1;
+            if (load_ops[i] == "LB" || load_ops[i] == "LBU") ctrl.lsu_req.width = MEM_BYTE;
+            else if (load_ops[i] == "LH" || load_ops[i] == "LHU") ctrl.lsu_req.width = MEM_HALF;
+            else ctrl.lsu_req.width = MEM_WORD;
+            ctrl.lsu_req.is_unsigned = (load_ops[i] == "LBU" || load_ops[i] == "LHU" || load_ops[i] == "LW") ? 1 : 0;
+            expected_table[load_ops[i]] = ctrl;
+        end
+
+        foreach(store_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_S; ctrl.rf_we = 0; 
+            ctrl.alu_req.op = ALU_ADD; ctrl.alu_req.op_a_sel = OP_A_RS1; ctrl.alu_req.op_b_sel = OP_B_IMM;
+            ctrl.lsu_req.we = 1;
+            if (store_ops[i] == "SB") ctrl.lsu_req.width = MEM_BYTE;
+            else if (store_ops[i] == "SH") ctrl.lsu_req.width = MEM_HALF;
+            else ctrl.lsu_req.width = MEM_WORD;
+            expected_table[store_ops[i]] = ctrl;
+        end
+
+        foreach(br_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_B; ctrl.rf_we = 0; 
+            ctrl.br_req.is_branch = 1; ctrl.br_req.is_jump = 0; ctrl.br_req.op = br_req_op[i];
+            ctrl.alu_req.op = ALU_ADD; ctrl.alu_req.op_a_sel = OP_A_PC; ctrl.alu_req.op_b_sel = OP_B_IMM;
+            expected_table[br_ops[i]] = ctrl;
+        end
+
+        ctrl = def_ctrl; ctrl.imm_type = IMM_J; ctrl.rf_we = 1; ctrl.wb_sel = WB_PC_PLUS4;
+        ctrl.br_req.is_jump = 1; ctrl.br_req.is_branch = 0;
+        ctrl.alu_req.op = ALU_ADD; ctrl.alu_req.op_a_sel = OP_A_PC; ctrl.alu_req.op_b_sel = OP_B_IMM;
+        expected_table["JAL"] = ctrl;
+
+        ctrl = def_ctrl; ctrl.imm_type = IMM_I; ctrl.rf_we = 1; ctrl.wb_sel = WB_PC_PLUS4;
+        ctrl.br_req.is_jump = 1; ctrl.br_req.is_branch = 0;
+        ctrl.alu_req.op = ALU_ADD; ctrl.alu_req.op_a_sel = OP_A_RS1; ctrl.alu_req.op_b_sel = OP_B_IMM;
+        expected_table["JALR"] = ctrl;
+
+        foreach(muldiv_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_Z; ctrl.rf_we = 1; ctrl.wb_sel = WB_M_UNIT;
+            ctrl.m_req.valid = 1; ctrl.m_req.op = muldiv_req_op[i];
+            expected_table[muldiv_ops[i]] = ctrl;
+        end
+
+        foreach(u_type_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_U; ctrl.rf_we = 1; ctrl.wb_sel = WB_ALU;
+            ctrl.alu_req.op = (u_type_ops[i] == "AUIPC") ? ALU_ADD : ALU_B; 
+            ctrl.alu_req.op_a_sel = (u_type_ops[i] == "AUIPC") ? OP_A_PC : OP_A_RS1; 
+            ctrl.alu_req.op_b_sel = OP_B_IMM;
+            expected_table[u_type_ops[i]] = ctrl;
+        end
+
+        foreach(csr_ops[i]) begin
+            ctrl = def_ctrl; ctrl.imm_type = IMM_I; ctrl.rf_we = 1; ctrl.wb_sel = WB_CSR;
+            ctrl.csr_req.valid = 1; ctrl.csr_req.op = csr_req_op[i];
+            ctrl.csr_req.is_imm = (csr_ops[i] == "CSRRWI" || csr_ops[i] == "CSRRSI" || csr_ops[i] == "CSRRCI") ? 1 : 0;
+            expected_table[csr_ops[i]] = ctrl;
         end
     endfunction
 
-    // Hàm nhận diện tên lệnh (Dùng Casez giống DUT để đối chiếu)
+    // =========================================================================
+    // 2. HÀM NHẬN DIỆN LỆNH (TỪ CODE GỐC CỦA BẠN)
+    // =========================================================================
     function string identify_instr(logic [31:0] instr);
         casez (instr)
             LUI: return "LUI"; AUIPC: return "AUIPC";
@@ -231,66 +330,125 @@ class decoder_scoreboard extends uvm_scoreboard;
         endcase
     endfunction
 
+    // =========================================================================
+    // 3. HÀM DỰ ĐOÁN IMMEDIATE
+    // =========================================================================
+    function logic [31:0] predict_imm(logic [31:0] instr, imm_type_e type_e);
+        case (type_e)
+            IMM_I: return {{20{instr[31]}}, instr[31:20]};
+            IMM_S: return {{20{instr[31]}}, instr[31:25], instr[11:7]};
+            IMM_B: return {{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0};
+            IMM_U: return {instr[31:12], 12'b0};
+            IMM_J: return {{11{instr[31]}}, instr[31], instr[19:12], instr[20], instr[30:21], 1'b0};
+            IMM_Z: return 32'b0; 
+            default: return 32'b0;
+        endcase
+    endfunction
+
+    // =========================================================================
+    // 4. THE CHECKER (LUẬT KIỂM CHỨNG)
+    // =========================================================================
     function void write(decoder_item pkt);
-        string name;
-        string msg;
-        bit    is_pass = 1;
+        string name = identify_instr(pkt.instr); 
+        dec_out_t exp_ctrl;
+        logic [31:0] exp_imm;
+        bit is_pass = 1;
 
-        name = identify_instr(pkt.instr);
+        cnt_total++;
+        if (instr_count.exists(name)) instr_count[name]++; else instr_count[name] = 1;
 
-        // --- 1. BASIC CHECKING ---
         if (name == "ILLEGAL") begin
             if (pkt.ctrl.illegal_instr !== 1'b1) begin
-                `uvm_error("FAIL", $sformatf("Missed ILLEGAL detection! Instr: %h", pkt.instr))
+                `uvm_error("FAIL_ILL", $sformatf("Missed ILLEGAL detection! Instr: %h", pkt.instr))
+                cnt_fail++;
+            end else cnt_pass++;
+            return; 
+        end 
+        
+        if (pkt.ctrl.illegal_instr === 1'b1) begin
+            `uvm_error("FAIL_VALID", $sformatf("Valid Instr %s detected as ILLEGAL!", name))
+            cnt_fail++; return;
+        end
+
+        if (expected_table.exists(name)) begin
+            exp_ctrl = expected_table[name];
+            
+            if (pkt.ctrl.rf_we !== exp_ctrl.rf_we) begin
+                `uvm_error("FAIL_RF", $sformatf("[%s] RF_WE Mismatch! Exp:%b Act:%b", name, exp_ctrl.rf_we, pkt.ctrl.rf_we))
+                is_pass = 0;
+            end
+            if (pkt.ctrl.wb_sel !== exp_ctrl.wb_sel) begin
+                `uvm_error("FAIL_WB", $sformatf("[%s] WB_SEL Mismatch! Exp:%s Act:%s", name, exp_ctrl.wb_sel.name(), pkt.ctrl.wb_sel.name()))
+                is_pass = 0;
+            end
+            if (pkt.ctrl.alu_req.op !== exp_ctrl.alu_req.op) begin
+                `uvm_error("FAIL_ALU", $sformatf("[%s] ALU_OP Mismatch! Exp:%s Act:%s", name, exp_ctrl.alu_req.op.name(), pkt.ctrl.alu_req.op.name()))
+                is_pass = 0;
+            end
+            if (pkt.ctrl.alu_req.op_a_sel !== exp_ctrl.alu_req.op_a_sel || pkt.ctrl.alu_req.op_b_sel !== exp_ctrl.alu_req.op_b_sel) begin
+                `uvm_error("FAIL_MUX", $sformatf("[%s] ALU MUX Mismatch!", name))
+                is_pass = 0;
+            end
+            if (pkt.ctrl.lsu_req.we !== exp_ctrl.lsu_req.we || pkt.ctrl.lsu_req.re !== exp_ctrl.lsu_req.re) begin
+                `uvm_error("FAIL_LSU", $sformatf("[%s] LSU RE/WE Mismatch!", name))
+                is_pass = 0;
+            end
+
+            exp_imm = predict_imm(pkt.instr, exp_ctrl.imm_type);
+            if (pkt.imm !== exp_imm) begin
+                `uvm_error("FAIL_IMM", $sformatf("[%s] Immediate Mismatch! Exp:%h Act:%h", name, exp_imm, pkt.imm))
                 is_pass = 0;
             end
         end else begin
-            if (pkt.ctrl.illegal_instr === 1'b1) begin
-                `uvm_error("FAIL", $sformatf("Valid Instr %s detected as ILLEGAL!", name))
-                is_pass = 0;
+            if (name != "ECALL" && name != "EBREAK" && name != "MRET") begin
+                 `uvm_warning("SCB_MISS", $sformatf("Instruction %s not in Golden Table!", name))
             end
         end
 
-        // --- 2. LOGGING ---
-        if (is_pass && verbose) begin
-            msg = $sformatf("[PASS] Instr:%-8s | Hex:%h | RF_WE:%b", name, pkt.instr, pkt.ctrl.rf_we);
-            $display(msg);
+        if (is_pass) begin
+            cnt_pass++;
+            if (verbose) $display("[PASS] %-8s | Hex:%h properly decoded.", name, pkt.instr);
+        end else begin
+            cnt_fail++;
+            // THÊM 2 DÒNG NÀY ĐỂ GHI NHẬN LỖI:
+            if (fail_counts.exists(name)) fail_counts[name]++; 
+            else fail_counts[name] = 1;
         end
-
-        // --- 3. STATISTICS GATHERING ---
-        if (instr_count.exists(name)) instr_count[name]++; else instr_count[name] = 1;
-        
-        cnt_total++;
-        if (pkt.ctrl.illegal_instr) cnt_illegal++;
-        if (pkt.ctrl.rf_we)         cnt_rf_write++;
-        if (pkt.ctrl.lsu_req.re || pkt.ctrl.lsu_req.we) cnt_mem_req++;
-        if (pkt.ctrl.br_req.is_branch || pkt.ctrl.br_req.is_jump) cnt_br_jump++;
-
     endfunction
 
+    // =========================================================================
+    // 5. REPORT PHASE MỚI CHUYÊN NGHIỆP HƠN
+    // =========================================================================
     function void report_phase(uvm_phase phase);
-        string name_str;
-
         $display("\n==================================================");
-        $display("          DECODER VERIFICATION REPORT             ");
+        $display("   DECODER VERIFICATION REPORT (GOLDEN MODEL)     ");
         $display("==================================================");
+        $display("Total Instructions Tested: %0d", cnt_total);
+        $display("Passed Correctly         : %0d", cnt_pass);
+        $display("Failed (Errors)          : %0d", cnt_fail);
+        $display("--------------------------------------------------");
         
-        $display("\n--- 1. INSTRUCTION COVERAGE ---");
-        foreach (instr_count[key]) begin
-             $display("Instr %-10s : Detected %0d times", key, instr_count[key]);
+        $display(">>> FAILURES BREAKDOWN BY INSTRUCTION <<<");
+        if (cnt_fail == 0) begin
+            $display("  [+] NONE! All instructions perfectly decoded.");
+        end else begin
+            foreach (fail_counts[key]) begin
+                 $display("  [-] %-10s : FAILED %0d times", key, fail_counts[key]);
+            end
         end
+        $display("--------------------------------------------------");
 
-        $display("\n--- 2. QUALITY METRICS (CORNER CASES) ---");
-        $display("Total Instructions   : %0d", cnt_total);
-        $display("Illegal Instructions : %0d", cnt_illegal);
-        $display("Register File Writes : %0d", cnt_rf_write);
-        $display("Memory Accesses (L/S): %0d", cnt_mem_req);
-        $display("Branch / Jump Taken  : %0d", cnt_br_jump);
-        
-        $display("\n==================================================\n");
-    endfunction    
+        $display("INSTRUCTION COVERAGE (SAMPLE):");
+        foreach (instr_count[key]) begin
+             if (instr_count[key] > 0 && key != "ILLEGAL")
+                 $display("  -> %-10s : %0d times", key, instr_count[key]);
+        end
+        $display("  -> ILLEGAL / JUNK: %0d times", instr_count["ILLEGAL"]);
+        $display("==================================================\n");
+        if (cnt_fail == 0) $display(">>> PERFECT DECODING! READY FOR TAPE-OUT <<<");
+        else               $display(">>> FAILED! PLEASE CHECK THE UVM_ERROR LOGS <<<");
+    endfunction
 endclass
-
 // -----------------------------------------------------------------------------
 // 6. AGENT & ENV (STANDARD UVM)
 // -----------------------------------------------------------------------------

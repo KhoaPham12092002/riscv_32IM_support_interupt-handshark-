@@ -375,10 +375,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1; 
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SUB;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
             // BNE : Branch if Not Equal
             BNE: begin
@@ -387,10 +387,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SUB;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
             // BLT : Branch if Less Than (Signed)
             BLT: begin
@@ -399,10 +399,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SLT;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
             // BLTU : Branch if Less Than (Unsigned)
             BLTU: begin
@@ -411,10 +411,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SLTU;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
             // BGE : Branch if Greater Than or Equal (Signed)
             BGE: begin
@@ -423,10 +423,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SLT;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
             // BGEU : Branch if Greater Than or Equal (Unsigned)
             BGEU: begin
@@ -435,10 +435,10 @@ module decoder
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
                 ctrl_o.br_req.is_jump       = 1'b0;
-                // Logic: ALU Result = Rs1 - Rs2 (for comparison)
-                ctrl_o.alu_req.op        = ALU_SLTU;
-                ctrl_o.alu_req.op_a_sel  = OP_A_RS1;
-                ctrl_o.alu_req.op_b_sel  = OP_B_RS2;
+                // Logic: ALU Result = PC + Immediate
+                ctrl_o.alu_req.op        = ALU_ADD;
+                ctrl_o.alu_req.op_a_sel  = OP_A_PC;
+                ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 end
         // GROUP 5: JUMP INSTRUCTIONS (J-Type & I-Type)
             // JAL : Jump and Link -> PC = PC+ Imm, Rd = PC + 4

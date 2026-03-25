@@ -1,0 +1,10 @@
+20/3/2026
+  Sửa lỗi ưu tiên trong PC_gen ready_i > brach > nomal ( sau này để đóng băng cục bộ) 
+  Sửa lỗi FSM trong LSU : Thêm dmem_ready_i,( phân biệt với ready trong pipeline) modify shift để load và store thành case và thành load, store theo bit nhằm tối ưu area
+  sửa lại monitor trong LSU để bắt tín hiệu tốt và thêm phần score board để check lỗi ở đâu
+Tiến độ đã xông ALU, m unit, decoder, LSU,pc gen, 
+Phát hiện lỗi tại các câu lệnh Branch : lỗi 1 ALU nên không thể vừa tính PC+ im vừa tính condition nhảy
+21/3/2026
+Today i create the new module brach_cmp : This auto compare the decide branch taken or not
+and i fix all bug in decoder ALU = ALU_ADD RS1 : PC RS2 : IM
+

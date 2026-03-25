@@ -386,7 +386,7 @@ module decoder
                 ctrl_o.br_req.op = BR_BNE;
                 ctrl_o.rf_we    = 1'b0; // Không ghi vào Rd
                 ctrl_o.br_req.is_branch     = 1'b1;
-                ctrl_o.br_req.is_jump       = 1'b0;
+                ctrl_o.br_req.is_jump       = 1'b0; 
                 // Logic: ALU Result = PC + Immediate
                 ctrl_o.alu_req.op        = ALU_ADD;
                 ctrl_o.alu_req.op_a_sel  = OP_A_PC;
@@ -403,7 +403,7 @@ module decoder
                 ctrl_o.alu_req.op        = ALU_ADD;
                 ctrl_o.alu_req.op_a_sel  = OP_A_PC;
                 ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
-                end
+                end 
             // BLTU : Branch if Less Than (Unsigned)
             BLTU: begin
                 ctrl_o.imm_type = IMM_B;

@@ -6,51 +6,46 @@ interface dmem_if ( input logic clk_i );
     logic        rst_i;        
     
     // (Write Port) - From Write Back (WB)
-    logic        we_i;    
-    logic        req_i;    
-    logic [3:0]  be_i;   
-    logic [31:0] wdata_i;      
-    logic [31:0] addr_i; 
-    logic [31:0] rdata_o;   
+    // Request Channel
+    logic        req_valid_i;
+    logic        req_ready_o;
+    logic [31:0] req_addr_i;
+    logic [31:0] req_wdata_i;
+    logic [3:0]  req_be_i;
+    logic        req_we_i;
+    
+    // Response Channel
+    logic        rsp_valid_o;
+    logic        rsp_ready_i;
+    logic [31:0] rsp_rdata_o;   
 endinterface
 
 
 
 // SEQUENCE ITEM
 class dmem_item extends uvm_sequence_item;
-	// Input
-	rand bit [31:0]	addr_i	;
-	rand bit [3:0]	be_i	;
-	rand bit 	we_i	;
-	rand bit [31:0]	wdata_i	;
-	rand int 	delay	;
-	rand bit 	req_i	;
-	// Output
-	bit [31:0] 	rdata_o	;
+	// Request phase
+        rand logic [31:0] req_addr;
+        rand logic [31:0] req_wdata;
+        rand logic [3:0]  req_be;
+        rand logic        req_we;
+        rand int          req_delay;
+    // Response Phase
+        logic [31:0]      rsp_rdata;
+        rand int          rsp_ready_delay;
+
 	
-	// This func to print,copy,compare value of variable
-	// `uvm_object_utils_begin(dmem_item) :It dmemisters your class with the factory and automates common methods for your variables
-	// `uvm_fiel_int([name],flag|flag or empty) :It adds this specific variable to the automation list.
-	// Flag :
-	// UVM_NOCOMPARE :use for variable not important or alway change(time,)
-	// UVM_NOPRINT : use for long name or don`t need watch
-	// UVM_NOCOPY : use for variable only use in 1 project 
-	// UVM_HEX,UVM_DEC, UVM_BIN, UVM_OCT, UVM_STRING : use type data print
-	// FOR INPUT 
+
 	`uvm_object_utils_begin(dmem_item)
-	`uvm_field_int(req_i,		UVM_ALL_ON | UVM_BIN)	
-	`uvm_field_int(we_i,    	UVM_ALL_ON | UVM_BIN)
-	`uvm_field_int(be_i,    	UVM_ALL_ON | UVM_BIN)
-	`uvm_field_int(addr_i,    	UVM_ALL_ON | UVM_HEX)
-	`uvm_field_int(wdata_i,    	UVM_ALL_ON | UVM_HEX)
-	`uvm_field_int(rdata_o,    	UVM_ALL_ON | UVM_HEX)
-	`uvm_field_int(delay,    	UVM_ALL_ON | UVM_DEC)
-	// FOR OUTPUT
-	`uvm_field_int(rdata_o,   	UVM_ALL_ON | UVM_HEX)
+    `uvm_field_int(req_addr,  UVM_DEFAULT | UVM_HEX)
+    `uvm_field_int(req_wdata, UVM_DEFAULT | UVM_HEX)
+    `uvm_field_int(req_be,    UVM_DEFAULT | UVM_BIN)
+    `uvm_field_int(req_we,    UVM_DEFAULT | UVM_BIN)
+    `uvm_field_int(rsp_rdata, UVM_DEFAULT | UVM_HEX)
 	`uvm_object_utils_end
-	constraint addr_c {addr_i<4096;}
-	constraint delay_c {delay inside {[0:5]};}
-	constraint be_valid_c { be_i inside {4'b1111, 4'b0011, 4'b1100, 4'b0001, 4'b0010, 4'b0100, 4'b1000}; }
+	constraint addr_c {req_addr<4096;}
+	constraint delay_c {req_delay inside {[0:5]};}
+	constraint be_valid_c { req_be inside {4'b1111, 4'b0011, 4'b1100, 4'b0001, 4'b0010, 4'b0100, 4'b1000}; }
 function new(string name = "dmem_item");
 		super.new(name);
 	endfunction
@@ -68,44 +63,42 @@ class dmem_driver extends uvm_driver #(dmem_item);
                 `uvm_fatal("DRV", "No Interface Found!")
 	endfunction
 	task run_phase(uvm_phase phase);
-	// 1. Reset Init
-        vif.req_i   <= 0;
-        vif.we_i    <= 0;
-        vif.be_i    <= 0;
-        vif.addr_i  <= 0;
-        vif.wdata_i <= 0;
+	
+        vif.req_valid_i   <= 0;
+        vif.rsp_ready_i    <= 0;
 
+        wait(vif.rst_i === 1'b0); // Chờ reset kết thúc (Active High)
+        @(posedge vif.clk_i);
 
-	@(posedge vif.rst_i);
-        `uvm_info("DRV", "Detected Reset Asserted", UVM_LOW) // <--- Thêm log
+        fork
+            // Thread 1: Drive Requests
+            forever begin
+                seq_item_port.get_next_item(req);
+                repeat(req.req_delay) @(posedge vif.clk_i);
 
-        @(negedge vif.rst_i);
-        `uvm_info("DRV", "Detected Reset De-asserted. Starting loop...", UVM_LOW) // <--- Thêm log
+                vif.req_valid_i <= 1'b1;
+                vif.req_addr_i  <= req.req_addr;
+                vif.req_wdata_i <= req.req_wdata;
+                vif.req_be_i    <= req.req_be;
+                vif.req_we_i    <= req.req_we;
 
-        forever begin
-            seq_item_port.get_next_item(req);
-            `uvm_info("DRV", $sformatf("Driving Item: Addr=%0h", req.addr_i), UVM_HIGH) // <--- Thêm log check item	
-
-
-			@(posedge vif.clk_i);
-		   	vif.rst_i	<= 0; // Đảm bảo không reset khi đang chạy
-        		vif.req_i	<= 1;
-        		vif.we_i	<= req.we_i;
-        		vif.be_i	<= req.be_i;
-        		vif.addr_i	<= req.addr_i;
-      			vif.wdata_i	<= req.wdata_i;
-        
-			@(posedge vif.clk_i);
-            		vif.req_i   <= 0;          // Tắt Chip Select
-            		vif.we_i    <= 0;
-            		vif.be_i    <= 0;
-			// notice done
-			// random delay
-			repeat(req.delay) @(posedge vif.clk_i);
-			seq_item_port.item_done();
-		end
-	endtask
+                do begin @(posedge vif.clk_i); end while (vif.req_ready_o !==1'b1); // Wait for DUT to accept request
+                
+                vif.req_valid_i <= 1'b0; // De-assert after one cycle
+                seq_item_port.item_done();
+            end
+            // Thread 2: Drive Response Ready (Random Delay)
+            forever begin
+                int delay = $urandom_range(0, 3);
+                repeat(delay) @(posedge vif.clk_i);
+                vif.rsp_ready_i <= 1'b1;
+                do begin @(posedge vif.clk_i); end while (vif.rsp_valid_o !== 1'b1); // Wait for DUT to assert valid
+                vif.rsp_ready_i <= 1'b0; // De-assert after one cycle
+            end
+        join_none
+    endtask
 endclass
+
 // MONITOR
 class dmem_monitor extends uvm_monitor;
 	`uvm_component_utils(dmem_monitor)
@@ -125,36 +118,38 @@ class dmem_monitor extends uvm_monitor;
             `uvm_fatal("MON", "Không thể lấy vif! Kiểm tra lại lệnh set ở tb_top.")
         end
     endfunction
-	task run_phase(uvm_phase phase);
-    dmem_item item;
+	
+    task run_phase(uvm_phase phase);
+    dmem_item pending[$];
+    dmem_item curr;
+
+    wait(vif.rst_i === 1'b0); // Chờ reset kết thúc (Active High)
+    repeat (2) @(posedge vif.clk_i);
+
     forever begin
         @(posedge vif.clk_i);
-        // Chờ 1 chút (1ns để tín hiệu ổn định rồi mới bắt
-	if (vif.req_i) begin 
-        
-        // Tạo gói tin mới
-        item = dmem_item::type_id::create("item");
 
-        // NỐI DÂY NGƯỢC LẠI
-        // Bên TRÁI là Class (Dữ liệu) = Bên PHẢI là Interface (Dây cứng)
-        
-        // Bắt Input (để biết Driver vừa lái cái gì)
-        item.req_i	= vif.req_i;
-        item.addr_i  	= vif.addr_i;
-        item.wdata_i      = vif.wdata_i;
-        item.be_i 	= vif.be_i;
-        item.we_i 	= vif.we_i;
-
-        // Bắt Output (Kết quả trả về từ Register File)
-        // Lưu ý: Register File thường là Read Async (bất đồng bộ)
-        // Nên có địa chỉ là có data ngay, bắt luôn được.
-        #1;
-	item.rdata_o    	= vif.rdata_o;
-        // Gửi về Scoreboard
-        mon_port.write(item);
+        if (vif.rst_i) begin
+            pending.delete();
+        end else begin
+            // 1. Bắt Request
+                if (vif.req_valid_i && vif.req_ready_o) begin
+                    curr = dmem_item::type_id::create("curr");
+                    curr.req_addr  = vif.req_addr_i;
+                    curr.req_wdata = vif.req_wdata_i;
+                    curr.req_be    = vif.req_be_i;
+                    curr.req_we    = vif.req_we_i;
+                    pending.push_back(curr);
+                end
+            // 2. Bắt Response
+            if (vif.rsp_valid_o && vif.rsp_ready_i && pending.size() > 0) begin
+                dmem_item done = pending.pop_front();
+                done.rsp_rdata = vif.rsp_rdata_o;
+                mon_port.write(done);
+            end
+        end
     end
-    end
-endtask
+    endtask
 endclass
 
 // SCOREBOARD 
@@ -168,63 +163,54 @@ class dmem_scoreboard extends uvm_scoreboard;
 
     // 3.Reference Model
     bit [31:0] ref_mem [int];
+    int cnt_pass = 0, cnt_fail = 0;
 
     // 4.Constructor
     function new(string name, uvm_component parent);
         super.new(name, parent);
         scb_export = new("scb_export", this);
-        
-        // Khởi tạo tất cả thanh ghi về 0
-        foreach(ref_mem[i]) begin
-            ref_mem[i] = 0;
-        end
-    endfunction
+        endfunction
 
     // 5. Function write - 
     // Đây là nơi xử lý logic so sánh chính
     function void write(dmem_item trans);
 	    bit [31:0] exp_data;
 	    int word_idx;
-        // ---------------------------------------------------------
-        // BƯỚC A:	MAPPING ADDRESS
-        // Logic: Change address from byte to array index
-        // --------------------------------------------------------
-	word_idx	=	trans.addr_i >> 2;
-	// Check bounds
-	    return;
-	        // ---------------------------------------------------------
-        // BƯỚC B: UPDATE MODEL
-        // LOGIC FOR WRITE MODEL 
-        // ---------------------------------------------------------
-	if (trans.we_i) begin
-		if (trans.be_i[0]) ref_mem[word_idx][7:0] = trans.wdata_i[7:0];
-		if (trans.be_i[1]) ref_mem[word_idx][15:8] = trans.wdata_i[15:8];
-		if (trans.be_i[2]) ref_mem[word_idx][23:16] = trans.wdata_i[23:16];
-		if (trans.be_i[3]) ref_mem[word_idx][31:24] = trans.wdata_i[31:24];
-		`uvm_info("SCB_WRITE", $sformatf("Stored Addr:%0h (Idx:%0d) | Data:%0h | BE:%b",
-                                             trans.addr_i, word_idx, ref_mem[word_idx], trans.be_i), UVM_HIGH)
-        end
-	// --------------------------------------------------------
-        // BƯỚC 3: XỬ LÝ LOGIC ĐỌC (COMPARE)
-        // --------------------------------------------------------
-        else begin
-            // DUT logic: if (req_i && we_i) -> rdata_o = mem_array[...]
-
-            // Lấy dữ liệu vàng từ Reference Model
-            if (!ref_mem.exists(word_idx)) begin
-                ref_mem[word_idx] = 32'h0;
+	    word_idx	=	trans.req_addr >> 2;
+	    // XỬ LÝ LỆNH GHI (WRITE)
+            if (trans.req_we) begin
+                if (!ref_mem.exists(word_idx)) ref_mem[word_idx] = 32'h0; // Khởi tạo nếu chưa có
+                
+                if (trans.req_be[0]) ref_mem[word_idx][7:0]   = trans.req_wdata[7:0];
+                if (trans.req_be[1]) ref_mem[word_idx][15:8]  = trans.req_wdata[15:8];
+                if (trans.req_be[2]) ref_mem[word_idx][23:16] = trans.req_wdata[23:16];
+                if (trans.req_be[3]) ref_mem[word_idx][31:24] = trans.req_wdata[31:24];
+                
+                // Ghi không sinh ra dữ liệu trả về đáng kể, ta có thể bỏ qua check Read Data
+                cnt_pass++; 
+            end 
+            // XỬ LÝ LỆNH ĐỌC (READ)
+            else begin
+                exp_data = ref_mem.exists(word_idx) ? ref_mem[word_idx] : 32'h0;
+                
+                if (trans.rsp_rdata !== exp_data) begin
+                    cnt_fail++;
+                    `uvm_error("FAIL", $sformatf("Addr:%0h | ACT:%0h | EXP:%0h", trans.req_addr, trans.rsp_rdata, exp_data))
+                end else begin
+                    cnt_pass++;
+                end
             end
-	    exp_data = ref_mem[word_idx];
-            // So sánh
-            if (trans.rdata_o !== exp_data) begin
-                `uvm_error("SCB_FAIL", $sformatf("READ FAIL WE : %0b| REQ: %0b|BE: %0b| Addr:%0h | DUT:%0h | EXP:%0h",trans.we_i,trans.req_i,trans.be_i,trans.addr_i, trans.rdata_o, exp_data))
-            end else begin
-                `uvm_info("SCB_PASS", $sformatf("READ PASS Addr:%0h | Data:%0h",
-                                                trans.addr_i, trans.rdata_o), UVM_HIGH)
-            end
-        end
-    endfunction
+        endfunction
 
+        function void report_phase(uvm_phase phase);
+            $display("\n======================================");
+            $display("         DMEM SCOREBOARD REPORT       ");
+            $display("======================================");
+            $display(" Pass: %0d | Fail: %0d", cnt_pass, cnt_fail);
+            if (cnt_fail == 0 && cnt_pass > 0) $display(" >>> STATUS: [PASSED] <<<");
+            else $display(" >>> STATUS: [FAILED] <<<");
+            $display("======================================\n");
+        endfunction        
 endclass
 
     // ---------------------------------------------------------
@@ -284,14 +270,27 @@ endclass
     endfunction
 
     task body();
-        repeat(2000) begin // Test 2000 gói tin
+        repeat(50000) begin // Test 2000 gói tin
             req = dmem_item::type_id::create("req");
             start_item(req);
-            req.addr_i	= $urandom_range(0, 1023) << 2;
-	    req.wdata_i 	= $urandom();
-	    req.we_i	= $urandom_range(0, 1);
-	    req.be_i	= valid_be_list[$urandom_range(0, valid_be_list.size() - 1)];
-	    req.delay 	= $urandom_range(0, 5);
+
+                // --- MANUAL RANDOMIZATION CHỐNG LỖI LICENSE ---
+                // 1. Địa chỉ: Random từ 0 -> 1023, dịch trái 2 bit để luôn chia hết cho 4
+                req.req_addr = $urandom_range(0, 1023) << 2; 
+                
+                // 2. Data: Random full 32-bit
+                req.req_wdata = $urandom(); 
+                
+                // 3. Write Enable: 0 (Đọc) hoặc 1 (Ghi)
+                req.req_we = $urandom_range(0, 1); 
+                
+                // 4. Byte Enable: Bốc ngẫu nhiên 1 trong 7 trường hợp hợp lệ
+                req.req_be = valid_be_list[$urandom_range(0, 6)]; 
+                
+                // 5. Trễ Pipeline (0 -> 3 chu kỳ)
+                req.req_delay       = $urandom_range(0, 3);
+                req.rsp_ready_delay = $urandom_range(0, 3);
+
 	    finish_item(req);
         end
     endtask
@@ -313,10 +312,11 @@ class dmem_basic_test extends uvm_test;
     task run_phase(uvm_phase phase);
         dmem_rand_sequence seq;
         seq = dmem_rand_sequence::type_id::create("seq");
-
+    
         phase.raise_objection(this);
         // Start sequence
         seq.start(env.agent.sequencer);
+        #200;
         phase.drop_objection(this);
     endtask
 endclass
@@ -333,82 +333,72 @@ import uvm_pkg::* ;
     dmem_if vif(clk);
 
     // 3. Kết nối DUT (Device Under Test) - DATA MEMORY
-    dmem dut (
-        .clk_i   (clk),
-        .rst_i   (vif.rst_i),
-
-        // Control Signals
-        .req_i   (vif.req_i),    // Chip Select
-        .we_i    (vif.we_i),     // Write Enable
-        .be_i    (vif.be_i),     // Byte Enable
-
-        // Data/Address Signals
-        .addr_i  (vif.addr_i),
-        .wdata_i (vif.wdata_i),  // Input data
-        .rdata_o (vif.rdata_o)   // Output data
+    dmem  #(
+        .MEM_SIZE(4096)
+    )dut(
+        .clk_i       (clk),
+        .rst_i       (vif.rst_i),
+        .req_valid_i (vif.req_valid_i),
+        .req_ready_o (vif.req_ready_o),
+        .req_addr_i  (vif.req_addr_i),
+        .req_wdata_i (vif.req_wdata_i),
+        .req_be_i    (vif.req_be_i),
+        .req_we_i    (vif.req_we_i),
+        .rsp_valid_o (vif.rsp_valid_o),
+        .rsp_ready_i (vif.rsp_ready_i),
+        .rsp_rdata_o (vif.rsp_rdata_o)
     );
-
-       
-    
-    initial begin
-        // A. Khởi tạo giá trị ban đầu an toàn
-        vif.rst_i   = 0;  
-        vif.req_i   = 0;
-        vif.we_i    = 0;
-        vif.be_i    = 0;
-        vif.addr_i  = 0;
-        vif.wdata_i = 0;
-	// 2. Đăng ký Interface (Quan trọng: Phải làm TRƯỚC run_test)
+    // init UVM
+     initial begin
+        // Đăng ký Interface vào Database ngay lập tức
         uvm_config_db#(virtual dmem_if)::set(null, "*", "vif", vif);
 
-        // 3. Gọi Test NGAY LẬP TỨC (Không được có delay # nào ở đây)
-        run_test();
-	end
-
-	initial begin
-
-        // B. Đăng ký Interface vào UVM Config DB
-        #10;
-        // Để Driver và Monitor có thể tìm thấy 'vif'
-	vif.rst_i = 1;
-        repeat (10) @(posedge clk);
-        
-        vif.rst_i = 0;  // Thả Reset -> DUT bắt đầu hoạt động
-        @(posedge clk);
-        // D. Gọi Test UVM
-        
-       // run_test("dmem_basic_test");
-        // Tên test phải trùng với class name trong file dmem_test.sv
+        // Giao quyền cho UVM tại Time = 0
+        run_test("dmem_basic_test");
     end
 
-    // 5. (Tùy chọn) Dump sóng để Debug trên phần mềm (GTKWave/Verdi)
+    // Control Reset
+    
+    initial begin
+        // Khởi tạo an toàn ban đầu
+        vif.rst_i       = 1; // Bật reset
+        vif.req_valid_i = 0;
+        vif.rsp_ready_i = 0;
+        
+        // Chờ 5 nhịp Clock cho hệ thống RTL ổn định
+        repeat(5) @(posedge clk);
+        
+        // Nhả Reset, hệ thống bắt đầu chạy thực sự
+        vif.rst_i = 0; 
+    end
+   // Dump sóng
     initial begin
         $dumpfile("dump.vcd");
         $dumpvars(0, tb_top);
     end
 
-    // 6. Monitor in ra màn hình Console (Dạng bảng)
-    initial begin
-        // In tiêu đề cột
-        $display("\n==========================================================================================");
-        $display("   Time   | Rst | Req | WE |  BE  |    Addr    |    WData     |    RData     | Status ");
-        $display("----------+-----+-----+----+------+------------+--------------+--------------+--------");
 
-        // Format:
-        // %t : Thời gian
-        // %b : Bit
-        // %h : Hex (8 số hex cho 32-bit)
-        $monitor("%9t |  %b  |  %b  |  %b | %b | 0x%h | 0x%h | 0x%h | %s",
+    /* initial begin
+        $display("\n======================================================================================================");
+        $display("   Time   | Rst | Req V/R | Rsp V/R | WE |  BE  |    Addr    |   WData    |   RData    |  Action  ");
+        $display("----------+-----+---------+---------+----+------+------------+------------+------------+----------");
+
+        // Format giải thích:
+        // V/R = Valid / Ready (Ví dụ: 1/1 là bắt tay thành công)
+        $monitor("%9t |  %b  |   %b/%b   |   %b/%b   |  %b | %b | 0x%h | 0x%h | 0x%h |  %s ",
                  $time,
                  vif.rst_i,
-                 vif.req_i,
-                 vif.we_i,
-                 vif.be_i,
-                 vif.addr_i,
-                 vif.wdata_i,
-                 vif.rdata_o,
-                 (vif.req_i === 1) ? (vif.we_i ? "WRITE" : "READ ") : "IDLE "
-                 );
-    end
-
+                 vif.req_valid_i, vif.req_ready_o,  // Kênh Request
+                 vif.rsp_valid_o, vif.rsp_ready_i,  // Kênh Response
+                 vif.req_we_i,
+                 vif.req_be_i,
+                 vif.req_addr_i,
+                 vif.req_wdata_i,
+                 vif.rsp_rdata_o,
+                 // Logic phán đoán trạng thái (Bọc ngoặc tròn tổng để chống lỗi cú pháp):
+                 ( (vif.req_valid_i && vif.req_we_i)  ? "WRITE " :
+                   (vif.req_valid_i && !vif.req_we_i) ? "READ  " : 
+                   (vif.rsp_valid_o)                  ? "RSP_OK" : "IDLE  " )
+        );
+    end */
 endmodule

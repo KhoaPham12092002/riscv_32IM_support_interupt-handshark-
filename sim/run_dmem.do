@@ -5,6 +5,7 @@
 # 1. SETUP PATHS
 set SRC_DIR   "../src"
 set VERIF_DIR "../verify"
+set PKG_DIR   "../package"
 set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
 
 puts "\[SCRIPT\] Using UVM Source at: $UVM_HOME"
@@ -54,7 +55,7 @@ vlog -sv -timescale "1ns/1ps" \
     +incdir+$SRC_DIR/memory \
     +incdir+$VERIF_DIR/UVM/memory/ \
     \
-    $SRC_DIR/memory/memory_pkg.sv \
+    $PKG_DIR/riscv_32im_pkg.sv \
     $SRC_DIR/memory/dmem.sv \
     $VERIF_DIR/UVM/memory/tb_dmem.sv
 

@@ -1,5 +1,5 @@
 // =============================================================================
-// FILE: tb_lsu.sv (STRICT UVM COMPLIANCE - PRO VERSION)
+// FILE: tb_lsu.sv (VERSION ADD 2 CHANNEL)
 // Features: LSU Handshake, Memory Simulation, Misaligned Checking
 // =============================================================================
 `timescale 1ns/1ps
@@ -29,12 +29,19 @@ interface lsu_if(input logic clk);
     logic        lsu_err_o;
 
     // Interface with DMEM (Memory Side)
+    // 1. Request Phase
+    logic        dmem_req_valid_o;
+    logic        dmem_req_ready_i;
     logic [31:0] dmem_addr_o;
     logic [31:0] dmem_wdata_o;
     logic [3:0]  dmem_be_o;
     logic        dmem_we_o;
-    logic        dmem_ready_i;
-    logic [31:0] dmem_rdata_i; // Mock Memory Data
+    
+    // 2. Response Phase
+    logic        dmem_rsp_valid_i;
+    logic        dmem_rsp_ready_o;
+    logic [31:0] dmem_rdata_i;
+
 endinterface
 
 // -----------------------------------------------------------------------------
@@ -151,7 +158,8 @@ class lsu_driver extends uvm_driver #(lsu_item);
         vif.valid_i      <= 0;
         vif.ready_i      <= 1; // Core luôn sẵn sàng nhận kết quả trả về
         vif.dmem_rdata_i <= 0;
-        vif.dmem_ready_i <= 0;
+        vif.dmem_req_ready_i <= 0;
+        vif.dmem_rsp_valid_i <= 0;
         
         @(posedge vif.clk);
         vif.rst_i <= 0;
@@ -169,41 +177,49 @@ class lsu_driver extends uvm_driver #(lsu_item);
             vif.wdata_i      <= req.wdata;
             vif.lsu_we_i     <= req.we;
             vif.funct3_i     <= req.funct3;
-            vif.dmem_ready_i <= 0;
             
             // --- 2. HANDSHAKE DONE ---
             @(posedge vif.clk);
             vif.valid_i <= 0; // Xả valid
-// --- 2. XỬ LÝ SONG SONG (MEMORY MOCK & WAITING DONE) ---
+            
+            // --- 2. PARALLEL TWO-CHANNEL BEHAVIOR ---
             fork
                 // THREAD 1: Đóng vai Data Memory
-                begin : memory_behavior_thread
-                    // Chờ một khoảng delay được config từ Sequence
+// THREAD 1: Đóng vai Data Memory
+                begin : dmem_slave_thread
+                    // Bước A: Bắt Kênh Request
+                    wait (vif.dmem_req_valid_o === 1'b1);
+                    vif.dmem_req_ready_i <= 1'b1; // Slave báo đã nhận lệnh
+                    @(posedge vif.clk);
+                    vif.dmem_req_ready_i <= 1'b0; // Xả cờ
+                    
+                    // Bước B: Trễ RAM
                     repeat(req.dmem_delay) @(posedge vif.clk);
                     
-                    // Phản hồi dữ liệu và chớp cờ Ready
-                    vif.dmem_rdata_i <= req.mock_mem_data;
-                    vif.dmem_ready_i <= 1;
+                    // Bước C: Trả Response (BẠN ĐANG THIẾU ĐOẠN NÀY)
+                    vif.dmem_rdata_i     <= req.mock_mem_data; // Đẩy data thật vào!
+                    vif.dmem_rsp_valid_i <= 1'b1;              // Báo có data
                     
+                    // Đợi LSU chấp nhận Response
+                    wait (vif.dmem_rsp_ready_o === 1'b1);
                     @(posedge vif.clk);
-                    vif.dmem_ready_i <= 0; // Handshake xong thì xả cờ
+                    vif.dmem_rsp_valid_i <= 1'b0; // Xả cờ
                     
-                    // Đóng băng thread này, chờ thread 2 dọn dẹp
                     forever @(posedge vif.clk); 
                 end
                 
-                // THREAD 2: Đóng vai CPU chờ kết quả
                 begin : wait_lsu_done_thread
-                    // Dùng wait() để bắt ngay khoảnh khắc valid_o lên 1 (combinational)
-                    wait (vif.valid_o === 1'b1);
+                    wait (vif.valid_o === 1'b1); 
                 end
-            join_any // Ngay khi 1 trong 2 thread kết thúc (thường là Thread 2), đi tiếp!
+            join_any 
             
-            // Lệnh HỦY: Nếu rơi vào Misaligned Trap, Thread 2 xong trước.
-            // Ta phải "giết" Thread 1 đang bị kẹt trong lúc delay để dọn dẹp cho cycle sau.
+            // Xóa thread dmem nếu lệnh rơi vào Misaligned (không có Req gửi ra)
             disable fork; 
+            
+            // Reset các cờ an toàn
+            vif.dmem_req_ready_i <= 0;
+            vif.dmem_rsp_valid_i <= 0;
 
-            // Kết thúc transaction
             seq_item_port.item_done();
         end
     endtask
@@ -227,43 +243,7 @@ class lsu_monitor extends uvm_monitor;
         if(!uvm_config_db#(virtual lsu_if)::get(this, "", "vif", vif)) `uvm_fatal("MON", "No IF")
     endfunction
 
-    /* task run_phase(uvm_phase phase);
-        forever begin
-            @(posedge vif.clk);
-            #1;
-            // 1. CAPTURE REQUEST & MEMORY SIGNALS (Khi Valid & Ready)
-            // Đây là lúc duy nhất dmem_we/dmem_be bật lên
-            if (vif.valid_i && vif.ready_o) begin
-                pending_item = lsu_item::type_id::create("pkt");
-                pending_item.addr          = vif.addr_i;
-                pending_item.wdata         = vif.wdata_i;
-                pending_item.we            = vif.lsu_we_i;
-                pending_item.funct3        = vif.funct3_i;
-                pending_item.mock_mem_data = vif.dmem_rdata_i;
-
-                // Delay 1ns để chờ logic tổ hợp của DUT tính toán xong
-                pending_item.actual_dmem_addr  = vif.dmem_addr_o;
-                pending_item.actual_dmem_wdata = vif.dmem_wdata_o;
-                pending_item.actual_dmem_be    = vif.dmem_be_o;
-                pending_item.actual_dmem_we    = vif.dmem_we_o;
-                // --------------------------------------------------
-            end
-
-            // 2. CAPTURE RESPONSE (Khi Valid Output)
-            if (vif.valid_o) begin
-                if (pending_item != null) begin
-                    // Lúc này chỉ bắt kết quả trả về cho Core
-                    pending_item.actual_rdata      = vif.lsu_rdata_o;
-                    pending_item.actual_err        = vif.lsu_err_o;
-                    
-                    // Gửi trọn gói sang Scoreboard
-                    mon_ap.write(pending_item);
-                    pending_item = null; // Clear
-                end
-            end
-        end
-    endtask */
-    task run_phase(uvm_phase phase);
+   task run_phase(uvm_phase phase);
         forever begin
             @(posedge vif.clk);
             #1; // Delay 1ns để chờ logic tổ hợp tính toán xong
@@ -280,30 +260,28 @@ class lsu_monitor extends uvm_monitor;
                 pending_item.actual_dmem_we = 0; 
             end
 
-            // --- BƯỚC 2: THEO DÕI QUÁ TRÌNH (Tại state WAIT_MEM) ---
+            // --- BƯỚC 2: THEO DÕI QUÁ TRÌNH) ---
             if (pending_item != null) begin
                 
-                // Chụp tín hiệu Store xuất ra Memory (Lấy giá trị khi nó đang bật)
-                if (vif.dmem_we_o) begin
+                // Chụp REQUEST 
+                if (vif.dmem_req_valid_o && vif.dmem_req_ready_i) begin
                     pending_item.actual_dmem_we    = vif.dmem_we_o;
                     pending_item.actual_dmem_wdata = vif.dmem_wdata_o;
                     pending_item.actual_dmem_be    = vif.dmem_be_o;
                 end
 
-                // CHỤP DỮ LIỆU LOAD: Chỉ chụp đúng vào khoảnh khắc Memory báo Ready!
-                if (vif.dmem_ready_i) begin
+                // CHỤP RESPONSE
+                if (vif.dmem_rsp_valid_i && vif.dmem_rsp_ready_o) begin
                     pending_item.mock_mem_data = vif.dmem_rdata_i;
                 end
             end
 
-            // --- BƯỚC 3: KẾT THÚC TRANSACTION (Tại state DONE) ---
-            if (vif.valid_o) begin
+            // --- 4. CHỤP KẾT QUẢ VỀ CORE VÀ GỬI SANG SCOREBOARD ---
+            if (vif.valid_o && vif.ready_i) begin
                 if (pending_item != null) begin
-                    // Chụp kết quả trả về cho CPU Pipeline
                     pending_item.actual_rdata = vif.lsu_rdata_o;
                     pending_item.actual_err   = vif.lsu_err_o;
                     
-                    // Gửi trọn gói dữ liệu sạch sẽ sang Scoreboard
                     mon_ap.write(pending_item);
                     pending_item = null; // Xóa packet để sẵn sàng cho lệnh tiếp theo
                 end
@@ -546,12 +524,18 @@ module tb_top;
         .lsu_rdata_o (vif.lsu_rdata_o),
         .lsu_err_o   (vif.lsu_err_o),
         
-        .dmem_addr_o (vif.dmem_addr_o),
-        .dmem_wdata_o(vif.dmem_wdata_o),
-        .dmem_be_o   (vif.dmem_be_o),
-        .dmem_we_o   (vif.dmem_we_o),
-        .dmem_rdata_i(vif.dmem_rdata_i),
-        .dmem_ready_i (vif.dmem_ready_i)
+        // 1. Request Phase
+        .dmem_req_valid_o (vif.dmem_req_valid_o),
+        .dmem_req_ready_i (vif.dmem_req_ready_i),
+        .dmem_addr_o      (vif.dmem_addr_o),
+        .dmem_wdata_o     (vif.dmem_wdata_o),
+        .dmem_be_o        (vif.dmem_be_o),
+        .dmem_we_o        (vif.dmem_we_o),
+        
+        // 2. Response Phase
+        .dmem_rsp_valid_i (vif.dmem_rsp_valid_i),
+        .dmem_rsp_ready_o (vif.dmem_rsp_ready_o),
+        .dmem_rdata_i     (vif.dmem_rdata_i)
     );
 
     initial begin

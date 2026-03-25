@@ -1,77 +1,76 @@
 import riscv_32im_pkg::*;
+
 module lsu (
     input  logic        clk_i,
     input  logic        rst_i,
 
-    // Interface with Core
+    // --- Interface with Core (ALU/Decoder) ---
     input  logic [31:0] addr_i,
     input  logic [31:0] wdata_i,
-    input  logic        lsu_we_i,    // 1 = Store
+    input  logic        lsu_we_i,    // 1 = Store, 0 = Load
     input  logic [2:0]  funct3_i,    // Data type (LB, SB, etc.)
-    // Interface handshark
+    
+    // Core Handshake
     input  logic        valid_i,
     output logic        ready_o,
     output logic        valid_o,
-    input  logic        ready_i ,
-    // Interface with DMEM
+    input  logic        ready_i,
+
+    // --- Interface with DMEM (Kênh Đôi / Two-Channel) ---
+    // 1. Kênh Yêu Cầu (Request Phase)
+    output logic        dmem_req_valid_o,
+    input  logic        dmem_req_ready_i,
     output logic [31:0] dmem_addr_o,
     output logic [31:0] dmem_wdata_o,
     output logic [3:0]  dmem_be_o,
     output logic        dmem_we_o,
-    input  logic [31:0] dmem_rdata_i,
-    input logic         dmem_ready_i,
-
-    // Writeback to Core (Load Data)
-    output logic [31:0] lsu_rdata_o,
     
-   // Output for trap 
-    output logic lsu_err_o  
+    // 2. Kênh Phản Hồi (Response Phase)
+    input  logic        dmem_rsp_valid_i,
+    output logic        dmem_rsp_ready_o,
+    input  logic [31:0] dmem_rdata_i,
 
+    // --- Writeback to Core (Load Data & Trap) ---
+    output logic [31:0] lsu_rdata_o,
+    output logic        lsu_err_o   
 );
-    //FSM
+
+    // ==========================================
+    // 1. FSM & REGISTERS
+    // ==========================================
     typedef enum logic [1:0]{
-        IDLE,       // PHASE WAIT SIGNAL FORM EX
-        WAIT_MEM,   // WAIT MEMORY RESPONSE 1 CYCLE LATENCY
-        DONE       // OUT PUT
+        IDLE,       // Chờ tín hiệu từ Core
+        SEND_REQ,   // Gửi Request sang DMEM
+        WAIT_RSP,   // Chờ Response từ DMEM
+        DONE        // Trả kết quả về Core
     } state_t;
     state_t state;
     
-    // register save information Request
+    // Registers to latch inputs
     logic [31:0] addr_q;
+    logic [31:0] wdata_q;
     logic [2:0]  funct3_q;
     logic        we_q;
-    logic        misaligned_trap_q; // Lưu trạng thái lỗi
+    logic        misaligned_trap_q;
 
-    // Combinational
-    logic [1:0] addr_offset;
-    assign addr_offset = addr_i[1:0]; //(00, 01, 10, 11)
-    logic misaligned;	// để check số lẽ 
+    logic misaligned; // Dây kiểm tra chẵn/lẻ
     
-//  STORE PATH (CPU -> MEM)
-    // check lỗi miss aligned 
-        always_comb begin
-            misaligned = 1'b0; // Mặc định là OK
-            case (funct3_i)
-                3'b001, 3'b101: begin // SH, LH, LHU (16-bit)
-                    // Yêu cầu: Địa chỉ phải chẵn (bit cuối = 0)
-                    if (addr_i[0] != 1'b0) misaligned = 1'b1;
-                end
-            
-                3'b010: begin // SW, LW (32-bit)
-                    // Yêu cầu: Địa chỉ chia hết cho 4 (2 bit cuối = 00)
-                    if (addr_i[1:0] != 2'b00) misaligned = 1'b1;
-                end
-            
-                default: misaligned = 1'b0; // Byte (LB, SB) luôn luôn đúng
-            endcase
-        end
+    // Kiểm tra Misaligned (Tổ hợp)
+    always_comb begin
+        misaligned = 1'b0; 
+        case (funct3_i)
+            3'b001, 3'b101: if (addr_i[0] != 1'b0) misaligned = 1'b1;     // Halfword (chẵn)
+            3'b010:         if (addr_i[1:0] != 2'b00) misaligned = 1'b1;  // Word (chia hết cho 4)
+            default:        misaligned = 1'b0;                            // Byte
+        endcase
+    end
 
-    // Xuất tín hiệu lỗi ra ngoài
-// MAIN FSM (CONTROLLER)
+    // MAIN FSM
     always_ff @(posedge clk_i or posedge rst_i) begin 
         if (rst_i) begin
             state <= IDLE;
             addr_q <= 32'b0;
+            wdata_q <= 32'b0;
             funct3_q <= 3'b0;
             we_q <= 1'b0;
             misaligned_trap_q <= 1'b0;
@@ -79,108 +78,118 @@ module lsu (
             case (state)
                 IDLE : begin
                     if (valid_i) begin
-                        addr_q      <= addr_i;
-                        funct3_q    <= funct3_i;
-                        we_q        <= lsu_we_i;
-                        // check error
+                        addr_q   <= addr_i;
+                        wdata_q  <= wdata_i;
+                        funct3_q <= funct3_i;
+                        we_q     <= lsu_we_i;
+                        
                         if (misaligned) begin
                             misaligned_trap_q <= 1'b1;
                             state <= DONE ;
                         end else begin
                             misaligned_trap_q <= 1'b0;
-                            state <=    WAIT_MEM;
+                            state <= SEND_REQ;
                         end
                     end
                 end
-                WAIT_MEM : begin
-                    if (dmem_ready_i)    state <= DONE ;
+                SEND_REQ : begin
+                    if (dmem_req_ready_i) state <= WAIT_RSP;
+                end
+                WAIT_RSP : begin
+                    if (dmem_rsp_valid_i) state <= DONE;
                 end
                 DONE : begin
-                    if (ready_i) begin
-                    state <= IDLE;
-                    end
-                end
+                    if (ready_i) state <= IDLE;
+                end       
             endcase
         end
     end
-    // DMEM INTERFACE DRIVING (OUTPUT LOGIC)
-        // INPUT DMEM address : IDLE: addr_i, WAIT: addr_q 
-        logic [31:0] effective_addr;
-        assign effective_addr = (state == IDLE) ? addr_i : addr_q;
-        logic [1:0]  effective_offset;
-        assign effective_offset = effective_addr[1:0];
 
-        assign dmem_addr_o = {effective_addr[31:2], 2'b00}; // Word Aligned
-    // Chỉ bật Write Enable khi đang ở IDLE và có Valid Request (và không lỗi)
-    logic trigger_access;
-    assign trigger_access = (state == IDLE) && valid_i && !misaligned;
-    
-    // DMEM Write Enable:
-    assign dmem_we_o = trigger_access & ((state == IDLE) ? lsu_we_i : we_q);
-    
-    // DMEM Write Data: Dịch dữ liệu đến đúng ngăn
-        always_comb begin
+    // ==========================================
+    // 2. DMEM INTERFACE DRIVING (OUTPUT LOGIC)
+    // ==========================================
+    logic [1:0] effective_offset;
+    assign effective_offset = addr_q[1:0];
+
+    // Truyền địa chỉ (Căn lề Word)
+    assign dmem_addr_o = {addr_q[31:2], 2'b00}; 
+
+    // Truyền Write Enable
+    assign dmem_we_o = (state == SEND_REQ) & we_q;
+
+    // Truyền Write Data (Dùng biến _q)
+    always_comb begin
         dmem_wdata_o = 32'b0;
         case (effective_offset)
-            2'b00: dmem_wdata_o = wdata_i;
-            2'b01: dmem_wdata_o = {8'b0, wdata_i[23:0], 8'b0};
-            2'b10: dmem_wdata_o = {16'b0, wdata_i[15:0], 16'b0};
-            2'b11: dmem_wdata_o = {24'b0, wdata_i[7:0], 24'b0};
+            2'b00: dmem_wdata_o = wdata_q;
+            2'b01: dmem_wdata_o = {8'b0, wdata_q[23:0], 8'b0};
+            2'b10: dmem_wdata_o = {16'b0, wdata_q[15:0], 16'b0};
+            2'b11: dmem_wdata_o = {24'b0, wdata_q[7:0], 24'b0};
         endcase
-        end
-    // DMEM Byte Enable
+    end
+
+    // Truyền Byte Enable (Dùng biến _q)
     always_comb begin
         dmem_be_o = 4'b0000;
-        if (trigger_access && lsu_we_i )  begin
-            case (funct3_i)
-                3'b000: begin // SB (Store Byte)
-                   dmem_be_o = 4'b0001 << effective_offset; 
-                end
-
-                3'b001: begin // SH (Store Half)
-                   dmem_be_o = 4'b0011 << effective_offset; 
-                end
-
-                3'b010: begin // SW (Store Word)
-                    dmem_be_o = 4'b1111;
-                end
-                
+        if ((state == SEND_REQ) && we_q) begin
+            case (funct3_q)
+                3'b000:  dmem_be_o = 4'b0001 << effective_offset; // SB
+                3'b001:  dmem_be_o = 4'b0011 << effective_offset; // SH
+                3'b010:  dmem_be_o = 4'b1111;                     // SW
                 default: dmem_be_o = 4'b0000;
             endcase
         end
     end
 
-// 2. LOAD PATH (MEM -> CPU)
-    
-   logic [31:0] aligned_rdata;
+    // Handshake với DMEM
+    assign dmem_req_valid_o = (state == SEND_REQ);
+    assign dmem_rsp_ready_o = (state == WAIT_RSP);
 
+
+    // ==========================================
+    // 3. CORE INTERFACE DRIVING (LOAD PATH)
+    // ==========================================
+    
+    // a. Trích xuất Byte (8-bit 4-to-1 MUX)
+    logic [7:0] ext_byte;
     always_comb begin
-        aligned_rdata = 32'b0;
         case (addr_q[1:0])
-            2'b00: aligned_rdata = dmem_rdata_i;
-            2'b01: aligned_rdata = {8'b0, dmem_rdata_i[31:8]};
-            2'b10: aligned_rdata = {16'b0, dmem_rdata_i[31:16]};
-            2'b11: aligned_rdata = {24'b0, dmem_rdata_i[31:24]};
+            2'b00: ext_byte = dmem_rdata_i[7:0];
+            2'b01: ext_byte = dmem_rdata_i[15:8];
+            2'b10: ext_byte = dmem_rdata_i[23:16];
+            2'b11: ext_byte = dmem_rdata_i[31:24];
         endcase
     end
-        always_comb begin
+
+    // b. Trích xuất Halfword (16-bit 2-to-1 MUX)
+    // Chú ý: Chỉ cần xét addr_q[1] để biết là nửa dưới hay nửa trên
+    logic [15:0] ext_half;
+    always_comb begin
+        case (addr_q[1]) 
+            1'b0: ext_half = dmem_rdata_i[15:0];
+            1'b1: ext_half = dmem_rdata_i[31:16];
+        endcase
+    end
+
+    // c. Lựa chọn Output và Mở rộng dấu (Sign-Extension)
+    always_comb begin
         lsu_rdata_o = 32'b0;
-        if (state == DONE && !misaligned_trap_q && !we_q) begin
+        // Chỉ xuất data hợp lệ khi FSM xong việc, không có lỗi canh lề, và là lệnh Load
+        if ((state == DONE) && !misaligned_trap_q && !we_q) begin
             case (funct3_q)
-                3'b000: lsu_rdata_o = {{24{aligned_rdata[7]}}, aligned_rdata[7:0]};   // LB
-                3'b100: lsu_rdata_o = {24'b0, aligned_rdata[7:0]};                    // LBU
-                3'b001: lsu_rdata_o = {{16{aligned_rdata[15]}}, aligned_rdata[15:0]}; // LH
-                3'b101: lsu_rdata_o = {16'b0, aligned_rdata[15:0]};                   // LHU
-                3'b010: lsu_rdata_o = dmem_rdata_i;                                   // LW
+                3'b000: lsu_rdata_o = {{24{ext_byte[7]}}, ext_byte};        // LB  (Sign-extend)
+                3'b100: lsu_rdata_o = {24'b0, ext_byte};                    // LBU (Zero-extend)
+                3'b001: lsu_rdata_o = {{16{ext_half[15]}}, ext_half};       // LH  (Sign-extend)
+                3'b101: lsu_rdata_o = {16'b0, ext_half};                    // LHU (Zero-extend)
+                3'b010: lsu_rdata_o = dmem_rdata_i;                         // LW  (Pass-through)
                 default: lsu_rdata_o = 32'b0;
             endcase
         end
-        end
+    end
 
-    
-// OUTPUT HANDSHAKE LOGIC
-    assign valid_o = (state == DONE);
-    assign ready_o = (state == IDLE);
+    // Handshake & Trap với Core
+    assign valid_o   = (state == DONE);
+    assign ready_o   = (state == IDLE);
     assign lsu_err_o = (state == DONE) ? misaligned_trap_q : 1'b0;
 
-endmodule    
+endmodule

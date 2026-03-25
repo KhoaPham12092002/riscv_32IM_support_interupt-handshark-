@@ -4,9 +4,9 @@
 # ==========================================================================
 
 # 1. SETUP PATHS
-set PROJ_ROOT "/home/key/workspace/project2/project_2"
-set SRC_DIR   "$PROJ_ROOT/src/memory"
-set VERIF_DIR "$PROJ_ROOT/verify/UVM/memory"
+set PROJ_ROOT "/home/key/workspace/project2_axi"
+set SRC_DIR   "$PROJ_ROOT/src/core"
+set VERIF_DIR "$PROJ_ROOT/verify/UVM/core"
 
 # 2. CLEANUP & INIT LIBRARY
 if {[file exists work]} {

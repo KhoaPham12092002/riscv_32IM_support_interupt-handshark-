@@ -6,9 +6,10 @@ module csr (
     input  logic        rst_i,
 
     // --- Core Access Interface (Từ EX Stage) ---
-    // Dữ liệu wdata trong csr_req_i đã được chọn (RS1 hoặc Imm) ở ngoài
-    input  csr_req_t    csr_req_i, 
-    output logic [31:0] csr_rdata_o, 
+    input  csr_req_t    csr_req_i,    // valid, addr, wdata, op
+    output logic        csr_ready_o,  //  1 = ready, 0 = stuck
+    output logic [31:0] csr_rdata_o,  // 
+    output logic        csr_rsp_valid_o, // To EX: "Data rdata_o valid" (Cho AXI R-Channel)
 
     // --- Exception/Trap Interface (Từ Hazard/Commit Logic) ---
     input  logic        trap_valid_i,  // 1 = Có lỗi/ngắt xảy ra
@@ -27,36 +28,38 @@ module csr (
     input  logic        irq_ext_i      // External Interrupt
 );
 
-// 1. KHAI BÁO CÁC THANH GHI CSR (Machine Mode Standard)
+// ===========================================================================
+// 1. KHAI BÁO CÁC THANH GHI CSR  - AREA OPTIMIZED
+// ===========================================================================
     
-    // mstatus: Trạng thái hệ thống
-    // [12:11] MPP (Machine Previous Privilege) - Hardwire 11 (Machine)
-    // [7] MPIE (Previous Interrupt Enable)
-    // [3] MIE (Global Interrupt Enable)
+    // --- mstatus: Chỉ dùng 2 DFF cho MIE và MPIE ---
+    
+    logic mstatus_mpie;
+    logic mstatus_mie;
     logic [31:0] mstatus; 
+    assign mstatus = {19'b0, 2'b11, 3'b0, mstatus_mpie, 3'b0, mstatus_mie, 3'b0};
+    
+    logic mie_meie, mie_mtie, mie_msie; 
+    logic [31:0] mie;
+    assign mie = {20'b0, mie_meie, 3'b0, mie_mtie, 3'b0, mie_msie, 3'b0};
 
-    // mie: Cho phép ngắt cụ thể
-    // [11] MEIE (External), [7] MTIE (Timer), [3] MSIE (Software)
-    logic [31:0] mie;     
+    logic [31:0] mip; 
+    assign mip = {20'b0, irq_ext_i, 3'b0, irq_timer_i, 3'b0, irq_sw_i, 3'b0};
 
-    // mtvec: Địa chỉ cơ sở của hàm xử lý ngắt
-    logic [31:0] mtvec;   
+    logic [31:0] mtvec, mepc, mcause, mtval, mscratch;
 
-    // mepc: Lưu PC khi xảy ra lỗi
-    logic [31:0] mepc;    
+// 2. LOGIC HANDSHAKE & READ COMBINATIONAL
+    // Nếu có Trap, kéo Ready = 0 
+    assign csr_ready_o = ~trap_valid_i; 
 
-    // mcause: Nguyên nhân lỗi
-    logic [31:0] mcause;  
+    // confirm handshark
+    logic handshake_ok;
+    assign handshake_ok = csr_req_i.valid && csr_ready_o;
 
-    // mtval: Giá trị lỗi (VD: Địa chỉ truy cập sai)
-    logic [31:0] mtval;   
+    //(RSP VALID) 
+    // Tín hiệu này sau này nối thẳng vào cờ RVALID của AXI-Lite.
+    assign csr_rsp_valid_o = handshake_ok;
 
-    // mscratch: Thanh ghi nháp (thường để lưu con trỏ Stack kernel)
-    logic [31:0] mscratch;
-
-    // mip: Báo hiệu ngắt đang chờ (Pending)
-    logic [31:0] mip;     
-// 2. LOGIC ĐỌC CSR (Read Logic - Combinational)
     always_comb begin
         case (csr_req_i.addr)
             CSR_MSTATUS:  csr_rdata_o = mstatus;
@@ -67,87 +70,97 @@ module csr (
             CSR_MCAUSE:   csr_rdata_o = mcause;
             CSR_MTVAL:    csr_rdata_o = mtval;
             CSR_MIP:      csr_rdata_o = mip;
-            CSR_MHARTID:  csr_rdata_o = 32'b0; // Core 0
-            default:      csr_rdata_o = 32'b0; // Đọc địa chỉ lạ trả về 0
+            CSR_MHARTID:  csr_rdata_o = 32'b0; 
+            default:      csr_rdata_o = 32'b0; 
         endcase
     end
- [31:0] wdata_final;
+// 3. LOGIC XỬ LÝ DỮ LIỆU GHI & WRITE ENABLE (COMBINATIONAL)
+
+    logic [31:0] wdata_final;
+    logic        is_write_op;
     
     always_comb begin
-        // Dựa vào giá trị hiện tại (csr_rdata_o) và dữ liệu mới (csr_req_i.wdata)
         case (csr_req_i.op)
-            CSR_RW: wdata_final = csr_req_i.wdata;                   // Ghi đè
-            CSR_RS: wdata_final = csr_rdata_o | csr_req_i.wdata;     // Bật bit (Set)
-            CSR_RC: wdata_final = csr_rdata_o & ~csr_req_i.wdata;    // Tắt bit (Clear)
-            default: wdata_final = csr_rdata_o;                      // Giữ nguyên
+            CSR_RW:  wdata_final = csr_req_i.wdata;
+            CSR_RS:  wdata_final = csr_rdata_o | csr_req_i.wdata;
+            CSR_RC:  wdata_final = csr_rdata_o & ~csr_req_i.wdata;
+            default: wdata_final = csr_rdata_o;
         endcase
+
+        is_write_op = (csr_req_i.op == CSR_RW) || 
+                      ((csr_req_i.op == CSR_RS || csr_req_i.op == CSR_RC) && (csr_req_i.wdata != 32'b0));
     end
 
-// 4. LOGIC CẬP NHẬT THANH GHI (Sequential Logic)
+    // Tín hiệu Write Enable (we) BẮT BUỘC phải handshake_ok
+    logic we_mstatus, we_mie, we_mtvec, we_mepc, we_mcause, we_mtval, we_mscratch;
+    
+    assign we_mstatus  = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MSTATUS);
+    assign we_mie      = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MIE);
+    assign we_mtvec    = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MTVEC);
+    assign we_mepc     = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MEPC);
+    assign we_mcause   = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MCAUSE);
+    assign we_mtval    = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MTVAL);
+    assign we_mscratch = handshake_ok && is_write_op && (csr_req_i.addr == CSR_MSCRATCH);
+
+// 4. LOGIC CẬP NHẬT THANH GHI 
+
+
+    // --- A. Khối mstatus (Chịu ảnh hưởng bởi Trap, MRET và Software) ---
     always_ff @(posedge clk_i or posedge rst_i) begin
         if (rst_i) begin
-            // Reset Values
-            mstatus  <= 32'h0000_1800; // MPP=11 (Machine Mode)
-            mie      <= 32'b0;
-            mtvec    <= 32'b0;
-            mepc     <= 32'b0;
-            mcause   <= 32'b0;
-            mtval    <= 32'b0;
-            mscratch <= 32'b0;
-            mip      <= 32'b0;
-        end else begin
-            // --- A. Cập nhật MIP (Ngắt Pending) ---
-            // MIP phản ánh trực tiếp tín hiệu ngắt bên ngoài
-            mip[11] <= irq_ext_i;   // MEIP
-            mip[7]  <= irq_timer_i; // MTIP
-            mip[3]  <= irq_sw_i;    // MSIP
-            
-            // --- B. Xử lý Trap (Ưu tiên cao nhất) ---
-            if (trap_valid_i) begin
-                mepc    <= trap_pc_i;             // Lưu PC lỗi
-                mcause  <= {28'b0, trap_cause_i}; // Lưu mã lỗi (Cần xử lý bit 31 cho Interrupt sau)
-                mtval   <= trap_val_i;            // Lưu giá trị lỗi
-                
-                // Cập nhật mstatus (Save context)
-                mstatus[7] <= mstatus[3];     // MPIE = MIE (Lưu trạng thái ngắt cũ)
-                mstatus[3] <= 1'b0;           // MIE = 0 (Tắt ngắt toàn cục để xử lý lỗi)
-                mstatus[12:11] <= 2'b11;      // MPP = Machine Mode
-            end 
-            
-            // --- C. Xử lý MRET (Quay về từ Trap) ---
-            else if (mret_i) begin
-                // Khôi phục mstatus (Restore context)
-                mstatus[3] <= mstatus[7];     // MIE = MPIE (Khôi phục trạng thái ngắt)
-                mstatus[7] <= 1'b1;           // MPIE = 1 (Mặc định bật lại ngắt dự phòng)
-                mstatus[12:11] <= 2'b00;      // MPP = User (Hoặc giữ 11 nếu chỉ hỗ trợ M-mode)
-            end
-            
-            // --- D. Xử lý Ghi CSR thông thường (Từ lệnh phần mềm) ---
-            else if (csr_req_i.valid) begin
-                case (csr_req_i.addr)
-                    CSR_MSTATUS: begin
-                        // Chỉ cho phép ghi các bit MIE, MPIE
-                        mstatus[3] <= wdata_final[3];
-                        mstatus[7] <= wdata_final[7];
-                    end
-                    CSR_MIE: begin
-                        // Chỉ cho phép ghi các bit MEIE, MTIE, MSIE
-                        mie[11] <= wdata_final[11];
-                        mie[7]  <= wdata_final[7];
-                        mie[3]  <= wdata_final[3];
-                    end
-                    CSR_MTVEC:    mtvec    <= wdata_final;
-                    CSR_MEPC:     mepc     <= wdata_final;
-                    CSR_MCAUSE:   mcause   <= wdata_final;
-                    CSR_MTVAL:    mtval    <= wdata_final;
-                    CSR_MSCRATCH: mscratch <= wdata_final;
-                endcase
-            end
+            mstatus_mie  <= 1'b0;
+            mstatus_mpie <= 1'b0;
+        end else if (trap_valid_i) begin
+            mstatus_mpie <= mstatus_mie; // Lưu hiện trường cầu dao
+            mstatus_mie  <= 1'b0;        // Sập cầu dao tổng
+        end else if (mret_i) begin
+            mstatus_mie  <= mstatus_mpie;// Khôi phục cầu dao
+            mstatus_mpie <= 1'b1;        // Mặc định bật lại ngắt dự phòng
+        end else if (we_mstatus) begin
+            mstatus_mie  <= wdata_final[3];
+            mstatus_mpie <= wdata_final[7];
         end
     end
 
-// --- Output Mapping ---
-    assign epc_o = mepc;         // Địa chỉ để MRET nhảy về
-    assign trap_vector_o = mtvec;// Địa chỉ để Trap nhảy đến
+    // --- B. Khối mepc, mcause, mtval (Chịu ảnh hưởng bởi Trap và Software) ---
+    always_ff @(posedge clk_i or posedge rst_i) begin
+        if (rst_i) begin
+            mepc   <= 32'b0;
+            mcause <= 32'b0;
+            mtval  <= 32'b0;
+        end else if (trap_valid_i) begin
+            mepc   <= trap_pc_i;
+            mcause <= {28'b0, trap_cause_i}; // Có thể ghép bit 31 (Interrupt flag) từ bộ Hazard vào đây sau
+            mtval  <= trap_val_i;
+        end else begin
+            if (we_mepc)   mepc   <= wdata_final;
+            if (we_mcause) mcause <= wdata_final;
+            if (we_mtval)  mtval  <= wdata_final;
+        end
+    end
+
+    // --- C. Khối mie, mtvec, mscratch (CHỈ chịu ảnh hưởng bởi Software) ---
+    // Hoàn toàn không bị Trap đè (No Priority Masking)
+    always_ff @(posedge clk_i or posedge rst_i) begin
+        if (rst_i) begin
+            mie_meie <= 1'b0;
+            mie_mtie <= 1'b0;
+            mie_msie <= 1'b0;
+            mtvec    <= 32'b0;
+            mscratch <= 32'b0;
+        end else begin
+            if (we_mie) begin
+                mie_meie <= wdata_final[11];
+                mie_mtie <= wdata_final[7];
+                mie_msie <= wdata_final[3];
+            end
+            if (we_mtvec)    mtvec    <= wdata_final;
+            if (we_mscratch) mscratch <= wdata_final;
+        end
+    end
+
+// 5. OUTPUT MAPPING
+    assign epc_o         = mepc;  
+    assign trap_vector_o = mtvec; 
 
 endmodule

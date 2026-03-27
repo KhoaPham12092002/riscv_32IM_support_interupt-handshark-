@@ -16,10 +16,10 @@ module pc_gen (
 
     // --- Trap/Interrupt Interface (Placeholder for Future) ---
     // Mở comment phần này khi làm xong CSR/Controller
-    /*
+    
     input  logic        trap_taken_i,         // 1 = Có ngắt hoặc ngoại lệ (Trap/Interrupt)
     input  logic [31:0] trap_target_addr_i,   // Địa chỉ vector ngắt (mtvec)
-    */
+    
 
     // --- Output PC ---
     output logic [31:0] pc_o
@@ -38,11 +38,11 @@ module pc_gen (
     always_comb begin
         // --- LEVEL 1: TRAP/INTERRUPT (Highest Priority) ---
         // Khi có ngắt, ta phải nhảy ngay lập tức, bất chấp lệnh Branch.
-        /* if (trap_taken_i) begin
+         if (trap_taken_i) begin
             pc_next = trap_target_addr_i;
         end 
         else 
-        */
+        
         
         // --- LEVEL 2: BRANCH/JUMP (From Execute Stage) ---
         // Nếu không có ngắt, kiểm tra xem lệnh hiện tại có phải Branch lấy hay không

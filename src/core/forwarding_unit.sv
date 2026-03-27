@@ -1,60 +1,57 @@
 `timescale 1ns/1ps
+import riscv_32im_pkg::*;
 
 module forwarding_unit (
-    // --- Inputs từ tầng Execute (Lệnh hiện tại đang cần data) ---
-    input  logic [4:0] rs1_addr_ex,
-    input  logic [4:0] rs2_addr_ex,
+    // =======================================================================
+    // 1. NGƯỜI CẦN CỨU TRỢ (Tầng EX)
+    // =======================================================================
+    input  logic [4:0]  hz_ex_rs1_addr_i,
+    input  logic [4:0]  hz_ex_rs2_addr_i,
 
-    // --- Inputs từ tầng Memory (Lệnh trước đó 1 chu kỳ - EX/MEM) ---
-    input  logic [4:0] rd_addr_mem,
-    input  logic       rf_we_mem,
+    // =======================================================================
+    // 2. NGUỒN CỨU TRỢ 1 (Tầng MEM - Trễ 1 nhịp)
+    // =======================================================================
+    input  logic [4:0]  hz_mem_rd_addr_i,
+    input  logic        hz_mem_reg_we_i,
 
-    // --- Inputs từ tầng Writeback (Lệnh trước đó 2 chu kỳ - MEM/WB) ---
-    input  logic [4:0] rd_addr_wb,
-    input  logic       rf_we_wb,
+    // =======================================================================
+    // 3. NGUỒN CỨU TRỢ 2 (Tầng WB - Trễ 2 nhịp)
+    // =======================================================================
+    input  logic [4:0]  hz_wb_rd_addr_i,
+    input  logic        hz_wb_reg_we_i,
 
-    // --- Outputs điều khiển Mux chọn dữ liệu cho ALU ---
-    // 00: Lấy từ Register File (No Forwarding)
-    // 10: Forward từ tầng MEM (Ưu tiên cao nhất - EX Hazard)
-    // 01: Forward từ tầng WB (Ưu tiên thấp hơn - MEM Hazard)
-    output logic [1:0] forward_a_o,
-    output logic [1:0] forward_b_o
+    // =======================================================================
+    // 4. LỆNH BẺ GHI (Outputs)
+    // =======================================================================
+    output logic [1:0]  ctrl_fwd_rs1_sel_o,
+    output logic [1:0]  ctrl_fwd_rs2_sel_o
 );
 
-    // =========================================================================
-    // FORWARDING LOGIC CHO SOURCE 1 (RS1)
-    // =========================================================================
     always_comb begin
-        // Trường hợp 1: EX Hazard (Lệnh liền trước ghi vào RS1)
-        if (rf_we_mem && (rd_addr_mem != 5'd0) && (rd_addr_mem == rs1_addr_ex)) begin
-            forward_a_o = 2'b10;
-        end
-        // Trường hợp 2: MEM Hazard (Lệnh cách 1 nhịp ghi vào RS1)
-        // Lưu ý: Chỉ forward nếu KHÔNG bị EX Hazard che khuất (Priority logic)
-        else if (rf_we_wb && (rd_addr_wb != 5'd0) && (rd_addr_wb == rs1_addr_ex)) begin
-            forward_a_o = 2'b01;
-        end
-        // Trường hợp 3: Không có Hazard
-        else begin
-            forward_a_o = 2'b00;
-        end
-    end
+        // Mặc định: Không Forward, dùng giá trị gốc đọc từ Register File (00)
+        ctrl_fwd_rs1_sel_o = 2'b00;
+        ctrl_fwd_rs2_sel_o = 2'b00;
 
-    // =========================================================================
-    // FORWARDING LOGIC CHO SOURCE 2 (RS2)
-    // =========================================================================
-    always_comb begin
-        // Trường hợp 1: EX Hazard (Lệnh liền trước ghi vào RS2)
-        if (rf_we_mem && (rd_addr_mem != 5'd0) && (rd_addr_mem == rs2_addr_ex)) begin
-            forward_b_o = 2'b10;
+        // -------------------------------------------------------------------
+        // FORWARD CHO RS1
+        // -------------------------------------------------------------------
+        // Ưu tiên 1: Lấy từ MEM (Kết quả vừa tính xong nóng hổi nhất)
+        if (hz_mem_reg_we_i && (hz_mem_rd_addr_i != 5'd0) && (hz_mem_rd_addr_i == hz_ex_rs1_addr_i)) begin
+            ctrl_fwd_rs1_sel_o = 2'b01; 
         end
-        // Trường hợp 2: MEM Hazard (Lệnh cách 1 nhịp ghi vào RS2)
-        else if (rf_we_wb && (rd_addr_wb != 5'd0) && (rd_addr_wb == rs2_addr_ex)) begin
-            forward_b_o = 2'b01;
+        // Ưu tiên 2: Lấy từ WB (Kết quả cũ hơn 1 nhịp, chuẩn bị ghi vào túi)
+        else if (hz_wb_reg_we_i && (hz_wb_rd_addr_i != 5'd0) && (hz_wb_rd_addr_i == hz_ex_rs1_addr_i)) begin
+            ctrl_fwd_rs1_sel_o = 2'b10;
         end
-        // Trường hợp 3: Không có Hazard
-        else begin
-            forward_b_o = 2'b00;
+
+        // -------------------------------------------------------------------
+        // FORWARD CHO RS2
+        // -------------------------------------------------------------------
+        if (hz_mem_reg_we_i && (hz_mem_rd_addr_i != 5'd0) && (hz_mem_rd_addr_i == hz_ex_rs2_addr_i)) begin
+            ctrl_fwd_rs2_sel_o = 2'b01;
+        end
+        else if (hz_wb_reg_we_i && (hz_wb_rd_addr_i != 5'd0) && (hz_wb_rd_addr_i == hz_ex_rs2_addr_i)) begin
+            ctrl_fwd_rs2_sel_o = 2'b10;
         end
     end
 

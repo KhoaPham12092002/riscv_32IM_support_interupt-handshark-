@@ -217,6 +217,8 @@ package riscv_32im_pkg;
 
     // --- Execution Requests ---
     
+
+    
     // ALU Request
     typedef struct packed {
         alu_op_e    op;
@@ -277,16 +279,16 @@ package riscv_32im_pkg;
 
 // 4. TYPE INPUT FOR MODULE
     typedef struct packed {
-        logic [31:0] a;     // Operand A
-        logic [31:0] b;     // Operand B
+        logic [31:0] rs1_data;     // Operand A
+        logic [31:0] rs2_data;     // Operand B
         alu_op_e     op;    // Operation Code
         logic valid_i;       // Input Valid Signal
         logic ready_i;       // Input Ready Signal
     }alu_in_t;
 
     typedef struct packed {
-        logic [31:0]  a_i; //rs1
-        logic [31:0]  b_i; //sr2
+        logic [31:0]  rs1_data; //rs1
+        logic [31:0]  rs2_data; //sr2
         m_op_e        op;  // opcode
     } m_in_t; // M-type request
     // INTERNAL PIPELINE DATA STRUCTURES (Gói tin chuyển giữa các tầng)
@@ -329,6 +331,31 @@ package riscv_32im_pkg;
             logic [4:0]  rd_addr;
             logic [31:0]   csr_data;
         } mem_wb_t;
+
+        // Gói yêu cầu gửi đi (Từ Core -> Mem)
+    typedef struct packed {
+        logic [31:0] addr;
+    } imem_req_t;
+
+    // Gói dữ liệu nhận về (Từ Mem -> Core)
+    typedef struct packed {
+        logic [31:0] instr;
+    } imem_rsp_t;
+
+    // --- VÒI 2: DATA LOAD/STORE (DMEM/LSU) ---
+    // Gói yêu cầu gửi đi (Từ Core -> Mem)
+    typedef struct packed {
+        logic [31:0] addr;
+        logic [31:0] wdata;
+        logic        we;
+        logic [2:0]  funct3; 
+    } dmem_req_t;
+
+    // Gói dữ liệu nhận về (Từ Mem -> Core)
+    typedef struct packed {
+        logic [31:0] rdata;
+        logic        err; // Trạng thái lỗi truy cập
+    } dmem_rsp_t;
 // 5. RESET VALUES
     localparam alu_req_t ALU_REQ_RST = '{op: ALU_ADD, op_a_sel: OP_A_RS1, op_b_sel: OP_B_RS2};
     localparam m_req_t   M_REQ_RST   = '{op: M_MUL, valid: 1'b0};

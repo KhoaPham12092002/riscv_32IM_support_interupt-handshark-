@@ -47,7 +47,9 @@ module decoder
 	ctrl_o.lsu_req = LSU_REQ_RST;
 	ctrl_o.br_req  = BR_REQ_RST;
     ctrl_o.csr_req = CSR_REQ_RST;
+    
     // Instruction Decoding
+    if (valid_i) begin
      casez (instr.raw)
         // GROUP 1: UPPER IMMEDIATE (U-Type)
             LUI: begin
@@ -663,9 +665,9 @@ module decoder
                     ctrl_o.is_ebreak = 1'b1; // Báo hiệu EBREAK
                 end
 
-        default: begin
-            ctrl_o.illegal_instr = 1'b1; // Báo lệnh không hợp lệ (Trap)
-        end
+                default: begin
+                ctrl_o.illegal_instr = 1'b1; // Báo lệnh không hợp lệ (Trap)
+                end
     endcase
     end 
 // 3. IMMEDIATE GENERATION

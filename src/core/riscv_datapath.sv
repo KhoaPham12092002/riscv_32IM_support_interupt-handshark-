@@ -6,26 +6,30 @@ module riscv_datapath (
     input  logic rst_i,
 
     // ==============================================================
-    // 1. INTERFACE MEMORY (IMEM & LSU) - Khớp với mem module
+    // 1. INTERFACE MEMORY (IMEM & DMEM) - Khớp với mem module
     // ==============================================================
+    // --- IMEM Interface ---
     output logic        if_req_valid_o,
     output logic [31:0] if_req_addr_o,
     input  logic        if_req_ready_i,
     input  logic        if_rsp_valid_i,
     input  logic [31:0] if_rsp_instr_i,
     output logic        if_rsp_ready_o,
-
-    output logic [31:0] lsu_addr_o,
-    output logic [31:0] lsu_wdata_o,
-    output logic        lsu_we_o,
-    output logic [2:0]  lsu_funct3_o, 
-    output logic        lsu_req_valid_o,
-    input  logic        lsu_req_ready_i,
-    input  logic        lsu_rsp_valid_i,
-    input  logic [31:0] lsu_rdata_i,
-    output logic        lsu_rsp_ready_o,
-    input  logic        lsu_err_i,         // Nhận lỗi từ MEM
-
+    // --- DMEM Interface (Kênh Đôi / Two-Channel) ---
+    // 1. Kênh Yêu Cầu (Request Phase)
+    output logic        dmem_req_valid_o,
+    input  logic        dmem_req_ready_i,
+    output logic [31:0] dmem_addr_o,
+    output logic [31:0] dmem_wdata_o,
+    output logic [3:0]  dmem_be_o,
+    output logic        dmem_we_o,
+    
+    // 2. Kênh Phản Hồi (Response Phase)
+    input  logic        dmem_rsp_valid_i,
+    output logic        dmem_rsp_ready_o,
+    input  logic [31:0] dmem_rdata_i,
+    input  logic        dmem_err_i, // 1 = Lỗi truy cập bộ nhớ (ví dụ: misaligned access)
+   
     // ==============================================================
     // 2. INTERFACE ĐIỀU KHIỂN (CONTROL LOGIC) - Khớp riscv_control
     // ==============================================================
@@ -77,7 +81,13 @@ module riscv_datapath (
     logic [4:0]  rf_rs1_addr, rf_rs2_addr, rf_waddr;
     logic [31:0] rf_rs1_data, rf_rs2_data, rf_wdata;
     logic        rf_we;
-
+    logic        lsu_err_internal;
+    ex_mem_t ex_mem_in, ex_mem_out;
+    logic ex_mem_valid, ex_mem_ready;
+    id_ex_t id_ex_in, id_ex_out;
+    logic id_ex_valid, id_ex_ready;
+    mem_wb_t mem_wb_in, mem_wb_out;
+    logic mem_wb_valid, mem_wb_ready;
 // ===========================================================================
 // STAGE 1: INSTRUCTION FETCH (IF)
 // ===========================================================================
@@ -103,12 +113,12 @@ module riscv_datapath (
         .trap_target_addr_i   (pc_trap_target),
         .pc_o                 (if_pc)
     );
-
+    logic if_id_valid, if_id_ready;
+    if_id_t if_id_in, if_id_out;  
+    
     assign if_req_addr_o  = if_pc;
     assign if_rsp_ready_o = if_id_ready; 
-
-    if_id_t if_id_in, if_id_out;
-    logic if_id_valid, if_id_ready;
+    
     assign if_id_in.pc    = if_pc;
     assign if_id_in.instr = if_rsp_instr_i;
 
@@ -203,8 +213,7 @@ module riscv_datapath (
     */
     // =======================================================================
 
-    id_ex_t id_ex_in, id_ex_out;
-    logic id_ex_valid, id_ex_ready;
+
 
 // ===========================================================================
 // STAGE 3: EXECUTE (EX)
@@ -238,8 +247,8 @@ module riscv_datapath (
     logic        ex_alu_zero;
     logic [31:0] ex_alu_result;
     
-    assign ex_alu_in.a = (id_ex_out.ctrl.alu_req.op_a_sel == OP_A_PC)  ? id_ex_out.pc  : ex_rs1_fwd_data;
-    assign ex_alu_in.b = (id_ex_out.ctrl.alu_req.op_b_sel == OP_B_IMM) ? id_ex_out.imm : ex_rs2_fwd_data;
+    assign ex_alu_in.rs1_data = (id_ex_out.ctrl.alu_req.op_a_sel == OP_A_PC)  ? id_ex_out.pc  : ex_rs1_fwd_data;
+    assign ex_alu_in.rs2_data = (id_ex_out.ctrl.alu_req.op_b_sel == OP_B_IMM) ? id_ex_out.imm : ex_rs2_fwd_data;
     assign ex_alu_in.op = id_ex_out.ctrl.alu_req.op;
     assign ex_alu_in.valid_i = id_ex_valid;
     assign ex_alu_in.ready_i = ex_mem_ready;
@@ -249,7 +258,7 @@ module riscv_datapath (
     logic [31:0] ex_m_result;
     logic        ex_m_valid_o, ex_m_ready_o;
     m_in_t       ex_m_in; 
-    assign ex_m_in.a_i = ex_rs1_fwd_data; assign ex_m_in.b_i = ex_rs2_fwd_data; assign ex_m_in.op  = id_ex_out.ctrl.m_req.op;
+    assign ex_m_in.rs1_data = ex_rs1_fwd_data; assign ex_m_in.rs2_data = ex_rs2_fwd_data; assign ex_m_in.op  = id_ex_out.ctrl.m_req.op;
 
     riscv_m_unit u_m_unit (
         .clk(clk_i), .rst(rst_i),
@@ -277,12 +286,9 @@ module riscv_datapath (
 
     // --- Thu thập thông tin Trap ---
     // Ghi nhận PC và giá trị lỗi. Ưu tiên LSU lỗi ở MEM, nếu không thì lấy lỗi ở ID/EX.
-    assign trap_pc_o  = lsu_err_i ? ex_mem_out.pc : if_id_out.pc;
-    assign trap_val_o = lsu_err_i ? ex_mem_out.alu_result : if_id_out.instr;
-
-    ex_mem_t ex_mem_in, ex_mem_out;
-    logic ex_mem_valid, ex_mem_ready;
-
+    assign trap_pc_o  = (lsu_err_internal || dmem_err_i) ? ex_mem_out.pc : if_id_out.pc;
+    assign trap_val_o = (lsu_err_internal || dmem_err_i) ? ex_mem_out.alu_result : if_id_out.instr;
+  
     assign ex_mem_in.pc         = id_ex_out.pc; // Chuyển PC xuống để dò lỗi LSU
     assign ex_mem_in.ctrl       = id_ex_out.ctrl;
     assign ex_mem_in.alu_result = ex_alu_result;
@@ -295,7 +301,9 @@ module riscv_datapath (
     logic ex_stage_valid;
     // Chờ M-Unit (nếu đang tính toán) và CSR (nếu đang xử lý ngắt/ghi chép)
     assign ex_stage_valid = id_ex_valid && (id_ex_out.ctrl.m_req.valid ? ex_m_valid_o : 1'b1) && csr_ready_i;
-
+    logic is_mem_access;
+    logic lsu_valid_out;
+    assign is_mem_access = ex_mem_out.ctrl.lsu_req.we || ex_mem_out.ctrl.lsu_req.re;
     pipeline_reg #(ex_mem_t) u_reg_ex_mem (
         .clk_i(clk_i), .rst_i(rst_i),
         .flush_i (1'b0), 
@@ -303,7 +311,7 @@ module riscv_datapath (
         .ready_o (ex_mem_ready),
         .data_i  (ex_mem_in),
         .valid_o (ex_mem_valid),
-        .ready_i (mem_wb_ready), 
+        .ready_i (is_mem_access ? lsu_valid_out : mem_wb_ready), 
         .data_o  (ex_mem_out)
     );
 
@@ -313,29 +321,52 @@ module riscv_datapath (
     assign hz_mem_rd_addr_o = ex_mem_out.rd_addr;
     assign hz_mem_reg_we_o  = ex_mem_out.ctrl.rf_we;
 
-    assign lsu_addr_o      = ex_mem_out.alu_result;
-    assign lsu_wdata_o     = ex_mem_out.store_data;
-    assign lsu_we_o        = ex_mem_out.ctrl.lsu_req.we;
-    assign lsu_funct3_o    = ex_mem_out.ctrl.lsu_req.funct3;
-    
-    logic is_mem_access;
-    assign is_mem_access   = ex_mem_out.ctrl.lsu_req.we || ex_mem_out.ctrl.lsu_req.re;
-    assign lsu_req_valid_o = ex_mem_valid && is_mem_access && !lsu_err_i; // Kẹt lại nếu có lỗi
-    assign lsu_rsp_ready_o = mem_wb_ready;
+    logic [31:0] lsu_aligned_rdata;
+    logic        lsu_ready_out;
 
-    mem_wb_t mem_wb_in, mem_wb_out;
-    logic mem_wb_valid, mem_wb_ready;
+    lsu u_lsu_core (
+        .clk_i            (clk_i),
+        .rst_i            (rst_i),
+        
+        // Giao tiếp với Pipeline (Nhận lệnh từ Tầng 3)
+        .addr_i           (ex_mem_out.alu_result),
+        .wdata_i          (ex_mem_out.store_data),
+        .lsu_we_i         (ex_mem_out.ctrl.lsu_req.we),
+        .funct3_i         ({ex_mem_out.ctrl.lsu_req.is_unsigned, ex_mem_out.ctrl.lsu_req.width}),
+        
+        .valid_i          (ex_mem_valid && is_mem_access && !dmem_err_i), 
+        .ready_o          (lsu_ready_out),
+        .valid_o          (lsu_valid_out),
+        .ready_i          (mem_wb_ready), 
+        
+        // Giao tiếp với Pipeline (Trọng tài lỗi và dữ liệu chuẩn)
+        .lsu_rdata_o      (lsu_aligned_rdata),
+        .lsu_err_o        (lsu_err_internal), 
+
+        // Giao tiếp cáp chuẩn ra bên ngoài SoC (DMEM)
+        .dmem_req_valid_o (dmem_req_valid_o),
+        .dmem_req_ready_i (dmem_req_ready_i),
+        .dmem_addr_o      (dmem_addr_o),
+        .dmem_wdata_o     (dmem_wdata_o),
+        .dmem_be_o        (dmem_be_o),
+        .dmem_we_o        (dmem_we_o),
+        .dmem_rsp_valid_i (dmem_rsp_valid_i),
+        .dmem_rsp_ready_o (dmem_rsp_ready_o),
+        .dmem_rdata_i     (dmem_rdata_i)
+    );
+
+
 
     assign mem_wb_in.ctrl       = ex_mem_out.ctrl;
     assign mem_wb_in.alu_result = ex_mem_out.alu_result;
     assign mem_wb_in.m_result   = ex_mem_out.m_result;
-    assign mem_wb_in.load_data  = lsu_rdata_i; 
+    assign mem_wb_in.load_data  = lsu_aligned_rdata; 
     assign mem_wb_in.pc_plus4   = ex_mem_out.pc_plus4;
     assign mem_wb_in.rd_addr    = ex_mem_out.rd_addr;
     assign mem_wb_in.csr_data   = ex_mem_out.csr_data;
 
     logic mem_stage_valid;
-    assign mem_stage_valid = ex_mem_valid && (is_mem_access ? lsu_rsp_valid_i : 1'b1) && !lsu_err_i;
+    assign mem_stage_valid = ex_mem_valid && (is_mem_access ? lsu_valid_out : 1'b1) && !lsu_err_internal && !dmem_err_i;
 
     pipeline_reg #(mem_wb_t) u_reg_mem_wb (
         .clk_i(clk_i), .rst_i(rst_i),

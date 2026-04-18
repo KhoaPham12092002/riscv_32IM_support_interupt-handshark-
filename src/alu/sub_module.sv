@@ -20,9 +20,9 @@ module carry_block_4bits (
     output logic        cout, P_out, G_out
 );
     assign cin_out[0] = carry_in;
-    assign cin_out[1] = g[0] | (p[0] & cin_out[0]);
-    assign cin_out[2] = g[1] | (p[1] & g[0]) | (p[1] & p[0] & cin_out[0]);
-    assign cin_out[3] = g[2] | (p[2] & g[1]) | (p[2] & p[1] & g[0]) | (p[2] & p[1] & p[0] & cin_out[0]);
+    assign cin_out[1] = g[0] | (p[0] & carry_in);
+    assign cin_out[2] = g[1] | (p[1] & g[0]) | (p[1] & p[0] & carry_in);
+    assign cin_out[3] = g[2] | (p[2] & g[1]) | (p[2] & p[1] & g[0]) | (p[2] & p[1] & p[0] & carry_in);
     
     assign G_out = g[3] | (p[3] & g[2]) | (p[3] & p[2] & g[1]) | (p[3] & p[2] & p[1] & g[0]);
     assign P_out = &p; 

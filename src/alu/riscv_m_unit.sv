@@ -35,9 +35,10 @@ module riscv_m_unit (
     logic [32:0] mul_op_a, mul_op_b;
     logic [65:0] mul_res_full;
 
-    // Biến tạm (Khai báo local trong module để tránh lỗi syntax)
-    logic [63:0] shift_temp;
-    logic [32:0] diff_temp;
+    // Khai báo tín hiệu tổ hợp cho phép chia (Sửa lỗi BLKSEQ)
+    logic [63:0] shifted_reg;
+    logic [32:0] diff_val;
+    logic [63:0] next_result_div;
 
     // ========================================================================
     // 2. COMBINATIONAL LOGIC
@@ -46,9 +47,21 @@ module riscv_m_unit (
     assign a_is_signed = (m_in.op inside {M_MUL, M_MULH, M_MULHSU, M_DIV, M_REM});
     assign b_is_signed = (m_in.op inside {M_MUL, M_MULH, M_DIV, M_REM});
 
-    assign mul_op_a = a_is_signed ? {m_in.a_i[31], m_in.a_i} : {1'b0, m_in.a_i};
-    assign mul_op_b = b_is_signed ? {m_in.b_i[31], m_in.b_i} : {1'b0, m_in.b_i};
+    assign mul_op_a = a_is_signed ? {m_in.rs1_data[31], m_in.rs1_data} : {1'b0, m_in.rs1_data};
+    assign mul_op_b = b_is_signed ? {m_in.rs2_data[31], m_in.rs2_data} : {1'b0, m_in.rs2_data};
     assign mul_res_full = $signed(mul_op_a) * $signed(mul_op_b);
+
+    // Mạch toán học tổ hợp cho phép chia Restoring
+    assign shifted_reg = {result_reg[62:0], 1'b0};
+    assign diff_val    = {1'b0, shifted_reg[63:32]} - {1'b0, divisor_reg};
+
+    always_comb begin
+        next_result_div = shifted_reg;
+        if (diff_val[32] == 0) begin // Nếu kết quả phép trừ không âm
+            next_result_div[63:32] = diff_val[31:0];
+            next_result_div[0]     = 1'b1;
+        end
+    end
 
     // ========================================================================
     // 3. MAIN FSM
@@ -59,7 +72,6 @@ module riscv_m_unit (
             result_reg <= '0; divisor_reg <= '0; count <= '0;
             op_q <= M_MUL; sign_q <= 0; sign_r <= 0;
             div_by_zero_q <= 0;
-            shift_temp = '0; diff_temp = '0;
         end else begin
             case (state)
                 IDLE: begin
@@ -68,10 +80,10 @@ module riscv_m_unit (
                         op_q <= m_in.op;
                         if (is_div_op) begin
                             state <= PREPARE;
-                            sign_q <= (a_is_signed && m_in.a_i[31]) ^ (b_is_signed && m_in.b_i[31]);
-                            sign_r <= (a_is_signed && m_in.a_i[31]);
-                            result_reg  <= {32'd0, (a_is_signed && m_in.a_i[31]) ? -m_in.a_i : m_in.a_i};
-                            divisor_reg <= (b_is_signed && m_in.b_i[31]) ? -m_in.b_i : m_in.b_i;
+                            sign_q <= (a_is_signed && m_in.rs1_data[31]) ^ (b_is_signed && m_in.rs2_data[31]);
+                            sign_r <= (a_is_signed && m_in.rs1_data[31]);
+                            result_reg  <= {32'd0, (a_is_signed && m_in.rs1_data[31]) ? -m_in.rs1_data : m_in.rs1_data};
+                            divisor_reg <= (b_is_signed && m_in.rs2_data[31]) ? -m_in.rs2_data : m_in.rs2_data;
                         end else begin
                             result_reg <= mul_res_full[63:0];
                             state      <= DONE;
@@ -91,16 +103,9 @@ module riscv_m_unit (
                 end
 
                 DIV_LOOP: begin
-                    // Logic chia Restoring (Blocking assignments để giả lập logic tức thời)
-                    shift_temp = {result_reg[62:0], 1'b0};
-                    diff_temp  = {1'b0, shift_temp[63:32]} - {1'b0, divisor_reg};
+                    // Sử dụng tín hiệu tổ hợp đã tính sẵn ở bên ngoài (Sửa lỗi BLKSEQ)
+                    result_reg <= next_result_div;
                     
-                    if (diff_temp[32] == 0) begin 
-                        shift_temp[63:32] = diff_temp[31:0];
-                        shift_temp[0]     = 1'b1;
-                    end 
-                    
-                    result_reg <= shift_temp;
                     if (count == 1) state <= FIX_SIGN;
                     else            count <= count - 1;
                 end
@@ -119,6 +124,11 @@ module riscv_m_unit (
 
                 DONE: begin
                     if (ready_i) state <= IDLE;
+                end
+
+                // Bắt buộc phải có default cho FSM phần cứng (Sửa lỗi CASEINCOMPLETE)
+                default: begin
+                    state <= IDLE;
                 end
             endcase
         end

@@ -317,6 +317,7 @@ package riscv_32im_pkg;
             logic [31:0] m_result;
             logic [31:0] csr_data;
             logic [31:0] store_data; // rs2_data cũ
+            logic [31:0] pc;
             logic [31:0] pc_plus4;
             logic [4:0]  rd_addr;
         } ex_mem_t;

@@ -122,9 +122,9 @@ module lsu (
         dmem_wdata_o = 32'b0;
         case (effective_offset)
             2'b00: dmem_wdata_o = wdata_q;
-            2'b01: dmem_wdata_o = {8'b0, wdata_q[23:0], 8'b0};
-            2'b10: dmem_wdata_o = {16'b0, wdata_q[15:0], 16'b0};
-            2'b11: dmem_wdata_o = {24'b0, wdata_q[7:0], 24'b0};
+            2'b01: dmem_wdata_o = {wdata_q[23:0], 8'b0};
+            2'b10: dmem_wdata_o = {wdata_q[15:0], 16'b0};
+            2'b11: dmem_wdata_o = {wdata_q[7:0], 24'b0};
         endcase
     end
 

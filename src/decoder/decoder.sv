@@ -669,6 +669,7 @@ module decoder
                 ctrl_o.illegal_instr = 1'b1; // Báo lệnh không hợp lệ (Trap)
                 end
     endcase
+    end
     end 
 // 3. IMMEDIATE GENERATION
     always_comb begin

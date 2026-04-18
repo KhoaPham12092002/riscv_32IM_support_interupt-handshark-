@@ -30,8 +30,8 @@ module alu (
                     (alu_in.op == ALU_SLTU);
 // POSITIONAL MAPPING MODULE
     i_adder adder_inst (
-        alu_in.a,   //  a
-        alu_in.b,   // b
+        alu_in.rs1_data,   //  a
+        alu_in.rs2_data,   // b
         is_sub,       // carry_in (Sub = 1, Add = 0)
         is_sub,       // add_sub  (Mode control)
         adder_o,    // Output result
@@ -40,8 +40,8 @@ module alu (
     );
 
     alu_shift_inst shift_inst (
-        alu_in.a,            // data in 1
-        alu_in.b[4:0],      // shift amount from lower 5 bits of operand B
+        alu_in.rs1_data,            // data in 1
+        alu_in.rs2_data[4:0],      // shift amount from lower 5 bits of operand B
         shift_type,             // shift type: 00 SLL
         shift_o              // result
     );
@@ -61,11 +61,11 @@ module alu (
             ALU_SLT:  alu_o = {31'd0, (adder_o[31] ^ v_flag)};
             ALU_SLTU: alu_o = {31'd0, (~cout)};
             // Logic
-            ALU_XOR:  alu_o = alu_in.a ^ alu_in.b;
-            ALU_OR:   alu_o = alu_in.a | alu_in.b;
-            ALU_AND:  alu_o = alu_in.a & alu_in.b;
+            ALU_XOR:  alu_o = alu_in.rs1_data ^ alu_in.rs2_data;
+            ALU_OR:   alu_o = alu_in.rs1_data | alu_in.rs2_data;
+            ALU_AND:  alu_o = alu_in.rs1_data & alu_in.rs2_data;
             // Pass through B (LUI instruction support if needed)
-            ALU_B:    alu_o = alu_in.b;
+            ALU_B:    alu_o = alu_in.rs2_data;
             default:  alu_o = 32'b0;
         endcase
     end

@@ -1,0 +1,103 @@
+<mxfile compressed="false" host="app.diagrams.net" modified="2026-05-03T12:00:00.000Z" agent="Gemini" etag="auto" version="24.2.5" type="device">
+  <diagram id="diagram-1" name="Page-1">
+    <mxGraphModel dx="1000" dy="500" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="820" pageHeight="380" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="Hình 3.3 — State machine M-Unit (Multiply/Divide FSM)" style="text;fontSize=13;fontStyle=1;strokeColor=none;fillColor=none;align=center;html=1;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="110" y="4" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="3" value="MUL/MULH/MULHSU/MULHU: 1 chu kỳ (IDLE→DONE trực tiếp) | DIV/DIVU/REM/REMU: 35 chu kỳ (IDLE→PREPARE→32×DIV_LOOP→FIX_SIGN→DONE)" style="text;fontSize=9;fontStyle=2;strokeColor=none;fillColor=none;align=center;html=1;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="110" y="23" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="10" value="IDLE" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="20" y="160" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="PREPARE" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="180" y="160" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="DIV_LOOP&lt;br&gt;(×32)" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="340" y="160" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="FIX_SIGN" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="160" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="DONE" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="660" y="160" width="130" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="31" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="2" y="182" width="12" height="12" as="geometry" />
+        </mxCell>
+        <mxCell id="32" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=1.5;html=1;" edge="1" parent="1" source="31" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="20" value="is_div&lt;br&gt;(DIV/DIVU/REM/REMU)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="21" value="divisor!=0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="22" value="count&gt;1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="12" target="12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="405" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="23" value="count==1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="12" target="13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="24" value="(always)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="13" target="14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="25" value="ready_i (reset)&lt;br&gt;[DIV: 35 cycles total]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="14" target="10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="725" y="80" />
+              <mxPoint x="85" y="80" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="26" value="is_mul (MUL/MULH/MULHSU/MULHU)&lt;br&gt;[1 cycle]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=2;html=1;fontSize=8;strokeColor=#d6220a;fontColor=#d6220a;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="10" target="14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="85" y="280" />
+              <mxPoint x="725" y="280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="30" value="divisor==0&lt;br&gt;(div-by-zero)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeWidth=1.5;html=1;fontSize=8;dashed=1;strokeColor=#d79b00;fontColor=#d79b00;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="11" target="13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="245" y="55" />
+              <mxPoint x="565" y="55" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="27" value="MUL path" style="text;html=1;align=center;verticalAlign=middle;strokeColor=#d6220a;fillColor=#fff;fontSize=8;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="310" width="80" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="28" value="DIV path" style="text;html=1;align=center;verticalAlign=middle;strokeColor=#333333;fillColor=#fff;fontSize=8;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="120" y="310" width="80" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="29" value="Reset về IDLE khi done | ···  div-by-zero: PREPARE→FIX_SIGN (skip DIV_LOOP)" style="text;html=1;align=left;verticalAlign=middle;fontSize=8;strokeColor=none;fillColor=none;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="220" y="313" width="420" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

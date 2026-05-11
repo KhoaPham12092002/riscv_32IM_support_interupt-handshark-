@@ -52,6 +52,7 @@ module riscv_datapath (
     
     output logic [4:0]  hz_wb_rd_addr_o,
     output logic        hz_wb_reg_we_o,
+    output logic        lsu_err_o,         // LSU misaligned trap báo lên Control
     
     // ---> Nhận lệnh giật dây TỪ Não bộ
     input  logic        ctrl_force_stall_id_i,   
@@ -116,15 +117,36 @@ module riscv_datapath (
     logic if_id_valid, if_id_ready;
     if_id_t if_id_in, if_id_out;  
     
+    // [BUG #9 FIXED]: if_pc đã advance khi IMEM response về → cần latch PC lúc request accepted.
+    logic [31:0] if_pc_latched;
+    always_ff @(posedge clk_i or posedge rst_i) begin
+        if (rst_i)
+            if_pc_latched <= 32'b0;
+        else if (if_req_valid_o && if_req_ready_i)
+            if_pc_latched <= if_pc;
+    end
+    
     assign if_req_addr_o  = if_pc;
     assign if_rsp_ready_o = if_id_ready; 
     
-    assign if_id_in.pc    = if_pc;
+    assign if_id_in.pc    = if_pc_latched;  // PC của lệnh đang được fetch, không phải PC tiếp theo
     assign if_id_in.instr = if_rsp_instr_i;
+    // [BUG FIX]: IMEM is synchronous, so it acts as an extra pipeline stage.
+    // When branch is taken in EX, we must flush ID (in ID/EX) and IF (in IF/ID).
+    // BUT IMEM has already accepted a request for the instruction AFTER IF,
+    // which will arrive in the NEXT cycle. We must ignore it.
+    logic flush_if_id_next;
+    always_ff @(posedge clk_i or posedge rst_i) begin
+        if (rst_i) flush_if_id_next <= 1'b0;
+        else       flush_if_id_next <= ctrl_flush_if_id_i;
+    end
+    
+    logic real_flush_if_id;
+    assign real_flush_if_id = ctrl_flush_if_id_i | flush_if_id_next;
 
     pipeline_reg #(if_id_t) u_reg_if_id (
         .clk_i(clk_i), .rst_i(rst_i),
-        .flush_i (ctrl_flush_if_id_i),  // Xóa rác theo lệnh của Control
+        .flush_i (real_flush_if_id),  // Xóa rác theo lệnh của Control (hiện tại và chu kỳ sau)
         .valid_i (if_rsp_valid_i), 
         .ready_o (if_id_ready),
         .data_i  (if_id_in),
@@ -139,7 +161,6 @@ module riscv_datapath (
     dec_out_t    id_ctrl;
     logic [31:0] id_imm;
     logic [4:0]  id_rd_addr, id_rs1_addr, id_rs2_addr;
-    logic        id_decoder_valid_o;
 
     decoder u_decoder (
         .instr_i    (if_id_out.instr),
@@ -147,17 +168,13 @@ module riscv_datapath (
         .imm_o      (id_imm),
         .rd_addr_o  (id_rd_addr),
         .rs1_addr_o (id_rs1_addr),
-        .rs2_addr_o (id_rs2_addr),
-        .valid_i    (if_id_valid),
-        .ready_o    (), 
-        .valid_o    (id_decoder_valid_o),
-        .ready_i    (id_ex_ready)
+        .rs2_addr_o (id_rs2_addr)
     );
 
     // --- Giải mã thủ công các lệnh đặc biệt cho Control & CSR ---
     assign id_is_ecall_o      = if_id_valid && (if_id_out.instr == 32'h00000073);
     assign id_is_mret_o       = if_id_valid && (if_id_out.instr == 32'h30200073);
-    assign id_illegal_instr_o = if_id_valid && !id_decoder_valid_o;
+    assign id_illegal_instr_o = if_id_valid && id_ctrl.illegal_instr;
 
     // --- Cấp địa chỉ cho Register File và Control ---
     assign rf_rs1_addr = id_rs1_addr;
@@ -213,7 +230,29 @@ module riscv_datapath (
     */
     // =======================================================================
 
+    assign id_ex_in.pc       = if_id_out.pc;
+    assign id_ex_in.ctrl     = id_ctrl;
+    assign id_ex_in.rs1_data = rf_rs1_data;
+    assign id_ex_in.rs2_data = rf_rs2_data;
+    assign id_ex_in.imm      = id_imm;
+    assign id_ex_in.rd_addr  = id_rd_addr;
+    assign id_ex_in.rs1_addr = id_rs1_addr;
+    assign id_ex_in.rs2_addr = id_rs2_addr;
 
+    logic        ex_m_valid_o, ex_m_ready_o;
+    logic ex_m_stall;
+    assign ex_m_stall = id_ex_valid && id_ex_out.ctrl.m_req.valid && !ex_m_valid_o;
+
+    pipeline_reg #(id_ex_t) u_reg_id_ex (
+        .clk_i  (clk_i), .rst_i  (rst_i),
+        .flush_i (ctrl_flush_id_ex_i),
+        .valid_i (if_id_valid),
+        .ready_o (id_ex_ready),
+        .data_i  (id_ex_in),
+        .valid_o (id_ex_valid),
+        .ready_i (ex_mem_ready && !ex_m_stall),
+        .data_o  (id_ex_out)
+    );
 
 // ===========================================================================
 // STAGE 3: EXECUTE (EX)
@@ -221,7 +260,7 @@ module riscv_datapath (
     assign hz_ex_rs1_addr_o = id_ex_out.rs1_addr;
     assign hz_ex_rs2_addr_o = id_ex_out.rs2_addr;
     assign hz_ex_rd_addr_o  = id_ex_out.rd_addr;
-    assign hz_ex_reg_we_o   = id_ex_out.ctrl.rf_we;
+    assign hz_ex_reg_we_o   = id_ex_out.ctrl.rf_we && id_ex_valid;
     assign hz_ex_wb_sel_o   = id_ex_out.ctrl.wb_sel;
 
     // --- Forwarding Mux ---
@@ -253,11 +292,10 @@ module riscv_datapath (
     assign ex_alu_in.valid_i = id_ex_valid;
     assign ex_alu_in.ready_i = ex_mem_ready;
 
-    alu u_alu (.alu_in(ex_alu_in), .Zero(ex_alu_zero), .alu_o(ex_alu_result), .vaild_o(), .ready_o());
+    alu u_alu (.alu_in(ex_alu_in), .Zero(ex_alu_zero), .alu_o(ex_alu_result));
 
     logic [31:0] ex_m_result;
-    logic        ex_m_valid_o, ex_m_ready_o;
-    m_in_t       ex_m_in; 
+    m_in_t       ex_m_in;
     assign ex_m_in.rs1_data = ex_rs1_fwd_data; assign ex_m_in.rs2_data = ex_rs2_fwd_data; assign ex_m_in.op  = id_ex_out.ctrl.m_req.op;
 
     riscv_m_unit u_m_unit (
@@ -280,9 +318,18 @@ module riscv_datapath (
         .br_op_i        (id_ex_out.ctrl.br_req.op), 
         .branch_taken_o (branch_taken_internal) 
     );
-    // Bắn cờ Branch lên Control (Chỉ khi lệnh hiện tại là lệnh hợp lệ ở EX)
-    assign branch_taken_o = id_ex_valid && branch_taken_internal;
-    assign branch_target_addr = (id_ex_out.ctrl.br_req.is_jump) ? (id_ex_out.pc + id_ex_out.imm) : (ex_rs1_fwd_data + id_ex_out.imm);
+    // Bắn cờ Branch lên Control (Chỉ khi lệnh hiện tại là lệnh hợp lệ ở EX VÀ thực sự là branch/jump)
+    // [BUG #7 FIXED]: BR_REQ_RST.op = BR_BEQ = 0. ADDI với rs1=rs2=x0 → branch_cmp=1 → false branch!
+    // Phải guard thêm (is_branch || is_jump) để chỉ branch/jump thực sự mới trigger.
+    // [BUG #10 FIXED]: JAL/JALR (is_jump=1) phải nhảy vô điều kiện — không phụ thuộc branch_taken_internal.
+    // branch_cmp chỉ tính điều kiện cho BEQ/BNE/...; với JAL/JALR nó cho kết quả bất kỳ (có thể = 0).
+    assign branch_taken_o = id_ex_valid
+                            && (id_ex_out.ctrl.br_req.is_jump
+                                || (id_ex_out.ctrl.br_req.is_branch && branch_taken_internal));
+    // [BUG #6 FIXED]: Branch target = PC+IMM (BEQ/BNE/..) hoặc RS1+IMM (JALR).
+    // ALU ĐÃ tính đúng vì decoder set op_a_sel=OP_A_PC cho branches, OP_A_RS1 cho JALR.
+    // Không cần tính lại — dùng thẳng ex_alu_result.
+    assign branch_target_addr = ex_alu_result;
 
     // --- Thu thập thông tin Trap ---
     // Ghi nhận PC và giá trị lỗi. Ưu tiên LSU lỗi ở MEM, nếu không thì lấy lỗi ở ID/EX.
@@ -311,7 +358,7 @@ module riscv_datapath (
         .ready_o (ex_mem_ready),
         .data_i  (ex_mem_in),
         .valid_o (ex_mem_valid),
-        .ready_i (is_mem_access ? lsu_valid_out : mem_wb_ready), 
+        .ready_i (is_mem_access ? (lsu_valid_out && mem_wb_ready) : mem_wb_ready), 
         .data_o  (ex_mem_out)
     );
 
@@ -319,7 +366,7 @@ module riscv_datapath (
 // STAGE 4: MEMORY (MEM)
 // ===========================================================================
     assign hz_mem_rd_addr_o = ex_mem_out.rd_addr;
-    assign hz_mem_reg_we_o  = ex_mem_out.ctrl.rf_we;
+    assign hz_mem_reg_we_o  = ex_mem_out.ctrl.rf_we && ex_mem_valid;
 
     logic [31:0] lsu_aligned_rdata;
     logic        lsu_ready_out;
@@ -341,7 +388,7 @@ module riscv_datapath (
         
         // Giao tiếp với Pipeline (Trọng tài lỗi và dữ liệu chuẩn)
         .lsu_rdata_o      (lsu_aligned_rdata),
-        .lsu_err_o        (lsu_err_internal), 
+        .lsu_err_o        (lsu_err_internal),
 
         // Giao tiếp cáp chuẩn ra bên ngoài SoC (DMEM)
         .dmem_req_valid_o (dmem_req_valid_o),
@@ -365,6 +412,8 @@ module riscv_datapath (
     assign mem_wb_in.rd_addr    = ex_mem_out.rd_addr;
     assign mem_wb_in.csr_data   = ex_mem_out.csr_data;
 
+    assign lsu_err_o = lsu_err_internal;
+
     logic mem_stage_valid;
     assign mem_stage_valid = ex_mem_valid && (is_mem_access ? lsu_valid_out : 1'b1) && !lsu_err_internal && !dmem_err_i;
 
@@ -383,7 +432,7 @@ module riscv_datapath (
 // STAGE 5: WRITEBACK (WB)
 // ===========================================================================
     assign hz_wb_rd_addr_o = mem_wb_out.rd_addr;
-    assign hz_wb_reg_we_o  = mem_wb_out.ctrl.rf_we;
+    assign hz_wb_reg_we_o  = mem_wb_out.ctrl.rf_we && mem_wb_valid;
 
     assign rf_we    = mem_wb_out.ctrl.rf_we && mem_wb_valid;
     assign rf_waddr = mem_wb_out.rd_addr;

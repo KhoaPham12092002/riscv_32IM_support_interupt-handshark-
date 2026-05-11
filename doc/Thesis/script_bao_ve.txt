@@ -1,0 +1,414 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║          SCRIPT BẢO VỆ LUẬN VĂN TỐT NGHIỆP                                ║
+║  "Thiết kế RTL và xây dựng môi trường kiểm thử UVM                        ║
+║   cho lõi vi xử lý RISC-V (RV32IM) có hỗ trợ ngắt"                       ║
+║  SVTH: Phạm Tiến Khoa  |  GVHD: TS. Trần Hoàng Linh                      ║
+║  Thời gian trình bày: ~18 phút  |  Q&A: ~7 phút                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Ghi chú:
+  [Slide X]   = chuyển sang slide X
+  (XX giây)   = thời gian ước tính
+  ★           = điểm nhấn quan trọng, nhớ nói chậm, rõ
+  [PAUSE]     = dừng 1-2 giây, nhìn hội đồng
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+══════════════════════════════════
+PHẦN MỞ ĐẦU (Trước khi bắt đầu)
+══════════════════════════════════
+
+(Đứng thẳng, nhìn hội đồng, nói với giọng tự tin)
+
+"Kính thưa Quý Thầy Cô trong Hội đồng chấm luận văn,
+
+Em tên là Phạm Tiến Khoa, MSSV 2010344, sinh viên ngành Điện Tử – Viễn Thông,
+Khoa Điện – Điện Tử, Trường Đại học Bách Khoa TP.HCM.
+
+Hôm nay em xin được trình bày luận văn tốt nghiệp của mình với đề tài:
+★ 'Thiết kế RTL và xây dựng môi trường kiểm thử UVM
+   cho lõi vi xử lý RISC-V (RV32IM) có hỗ trợ ngắt'
+
+Luận văn được thực hiện dưới sự hướng dẫn của Thầy Trần Hoàng Linh.
+
+Em xin bắt đầu."
+
+[Slide 1 — Title]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 2 — Nội dung trình bày]                              (~30 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Bài trình bày hôm nay của em bao gồm 7 phần chính:
+Bắt đầu từ Giới thiệu tổng quan về lý do chọn đề tài,
+tiếp theo là Nhiệm vụ cụ thể của luận văn,
+sau đó là phần Cơ sở lý thuyết về RISC-V và UVM.
+
+Trọng tâm là hai phần thiết kế:
+Thiết kế phần cứng RTL lõi vi xử lý, và
+Xây dựng môi trường kiểm thử UVM.
+
+Tiếp theo là phần Kết quả thực hiện — đây là 'money slide' của bài.
+Và cuối cùng là Kết luận và hướng phát triển."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 3 — Giới thiệu tổng quan]                            (~90 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"★ Vì sao RISC-V? Vì sao UVM?
+
+Trong những năm gần đây, RISC-V — kiến trúc tập lệnh mã nguồn mở — đang nổi lên
+như một đối thủ cạnh tranh trực tiếp với ARM và x86 trong ngành IC Design toàn cầu.
+Từ các công ty khởi nghiệp đến NVIDIA, Google, Alibaba — tất cả đều đang đầu tư
+vào RISC-V.
+
+[PAUSE]
+
+Nhưng khi thiết kế một bộ vi xử lý, thách thức lớn nhất không phải là viết code RTL —
+★ mà là làm thế nào để chứng minh rằng thiết kế đó ĐÚNG.
+
+Trong thực tế công nghiệp, quá trình kiểm thử chức năng — gọi là Design Verification —
+chiếm tới 70% tổng thời gian và nguồn lực của một dự án chip.
+
+[PAUSE]
+
+★ Để giải quyết bài toán này, chuẩn UVM — Universal Verification Methodology,
+theo chuẩn IEEE 1800.2 — được áp dụng.
+UVM cho phép tạo ra các kịch bản kiểm thử ngẫu nhiên một cách tự động và
+đo lường độ bao phủ để biết đã kiểm thử được bao nhiêu phần trăm thiết kế.
+
+Từ bối cảnh đó, luận văn này đặt ra ba mục tiêu cụ thể:
+Một — Thiết kế lõi vi xử lý RV32IM pipeline 5 tầng, có hỗ trợ ngắt M-mode.
+Hai — Xây dựng môi trường kiểm thử UVM chuẩn công nghiệp cho lõi đó.
+Ba — Đạt 100% Functional Coverage và kiểm thử hơn 10,000 lệnh ngẫu nhiên."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 4 — Nhiệm vụ luận văn]                               (~60 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Luận văn được chia thành 4 nhiệm vụ cụ thể:
+
+Nhiệm vụ 1: Nghiên cứu đặc tả RISC-V — cả phần Unprivileged ISA
+cho tập lệnh RV32I và RV32M, lẫn phần Privileged Architecture cho
+cơ chế ngắt M-mode. Song song đó là nghiên cứu chuẩn UVM IEEE 1800.2.
+
+Nhiệm vụ 2: Thiết kế phần cứng RTL bằng SystemVerilog —
+gồm toàn bộ 47 lệnh RV32IM cộng 9 lệnh hệ thống,
+với đầy đủ cơ chế Forwarding, Stall, Flush và xử lý ngắt.
+
+Nhiệm vụ 3: Xây dựng môi trường UVM —
+gồm Unit Test cho từng module và Integration Test cho toàn hệ thống.
+
+Nhiệm vụ 4: Chạy mô phỏng trên QuestaSim, phân tích kết quả
+và đo lường Functional Coverage."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 5 — Cơ sở lý thuyết]                                 (~90 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Trước khi vào phần thiết kế, em xin điểm qua nhanh hai nền tảng lý thuyết.
+
+★ Về kiến trúc RISC-V:
+RISC-V có 32 thanh ghi 32-bit, đặc biệt thanh ghi x0 luôn bằng 0 —
+điều này giúp đơn giản hóa nhiều tình huống như 'move' hay 'nop'.
+Tập lệnh RV32I có 6 định dạng cơ bản: R, I, S, B, U, J — mỗi định dạng
+tương ứng với một loại phép toán khác nhau.
+RV32M bổ sung 8 lệnh nhân/chia phần cứng.
+★ Đặc biệt theo đặc tả, phép chia cho 0 KHÔNG sinh ngoại lệ —
+thay vào đó trả về giá trị xác định như 0xFFFFFFFF.
+
+Cơ chế ngắt M-mode hoạt động qua 8 thanh ghi CSR:
+mstatus điều khiển bật/tắt ngắt toàn cục,
+mie và mip quản lý từng nguồn ngắt,
+mtvec lưu địa chỉ ISR, mepc lưu địa chỉ trả về,
+mcause và mtval ghi lý do ngắt.
+
+[PAUSE]
+
+★ Về UVM:
+UVM xây dựng môi trường theo kiến trúc phân cấp:
+uvm_test → uvm_env → uvm_agent.
+Bên trong agent có Driver tạo stimulus, Monitor thu thập tín hiệu,
+và Scoreboard với Reference Model để tự động kiểm tra kết quả.
+Điểm mạnh của UVM là Constrained-Random Verification —
+thay vì viết từng test case thủ công, ta định nghĩa ràng buộc
+và để công cụ tự sinh hàng ngàn tổ hợp lệnh ngẫu nhiên."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 6 — Thiết kế phần cứng: Kiến trúc]                   (~90 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Bây giờ em xin trình bày phần thiết kế phần cứng.
+
+Yêu cầu thiết kế là: ISA RV32I cộng RV32M, pipeline 5 tầng,
+ngôn ngữ SystemVerilog, giao thức bộ nhớ Valid/Ready theo kiểu AXI-like.
+
+★ Đây là điểm khác biệt đầu tiên so với các đề tài tương tự trong nước:
+thay vì dùng giao tiếp bộ nhớ đồng bộ đơn giản, em thiết kế giao thức
+Handshake Valid/Ready chuẩn, tạo tiền đề để tích hợp AXI-4 Lite sau này.
+
+[PAUSE]
+
+Kiến trúc module chia thành các khối chức năng rõ ràng:
+- soc_top là top-level, chứa riscv_datapath, csr và riscv_control.
+- Trong datapath: pc_gen quản lý Program Counter,
+  decoder giải mã 56 lệnh và tạo control bundle,
+  alu thực hiện 11 phép toán,
+  riscv_m_unit thực hiện MUL trong 2 chu kỳ và DIV trong 35 chu kỳ
+  bằng thuật toán Restoring Division.
+
+★ Ba khối quan trọng nhất là:
+forwarding_unit — xử lý Data Hazard,
+hazard_unit — phát hiện Load-Use Stall,
+và lsu — Load/Store Unit với FSM 4 trạng thái và Byte Enable 4-bit."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 7 — Thiết kế phần cứng: Hazard & Ngắt]               (~120 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Slide này trình bày chi tiết ba cơ chế xử lý quan trọng nhất.
+
+★ Thứ nhất — Data Forwarding:
+Khi lệnh kế tiếp cần kết quả của lệnh vừa thực hiện,
+thay vì đợi đến tầng WB — tốn 1-2 chu kỳ bổ sung —
+ta lấy kết quả trực tiếp từ thanh ghi pipeline.
+★ Điều quan trọng là phải ưu tiên đúng:
+đường MEM→EX phải có ưu tiên cao hơn WB→EX.
+Đây là một lỗi kinh điển trong thiết kế pipeline mà em đã gặp và sửa trong quá trình debug.
+
+[PAUSE]
+
+Thứ hai — Load-Use Stall:
+Khi lệnh Load ở tầng EX, lệnh kế cần dùng kết quả đó ngay lập tức —
+ta KHÔNG thể forward vì dữ liệu chưa có.
+Giải pháp: chèn 1 chu kỳ NOP vào pipeline, giữ ID/EX và IF/ID,
+cho phép dữ liệu load xong rồi mới forward từ MEM.
+
+Thứ ba — Control Hazard:
+Lệnh Branch được giải quyết tại tầng EX (Late Branch Resolution).
+Khi branch_taken = 1, phải Flush 2 thanh ghi IF/ID và ID/EX,
+chèn 2 NOP để loại bỏ 2 lệnh đã fetch sai.
+Branch Penalty là 2 chu kỳ.
+
+[PAUSE]
+
+★ Cuối cùng — Cơ chế Trap (Ngắt & Ngoại lệ):
+Khi ngắt đến và điều kiện hợp lệ (MIE=1, mie[bit]=1, mip[bit]=1):
+Phần cứng tự động lưu mepc ← PC_hiện_tại,
+ghi mcause ← mã nguyên nhân ngắt,
+★ xóa mstatus.MIE = 0 ngay trong cùng chu kỳ — đây là lý do để tránh nested interrupt,
+và điều hướng PC ← mtvec.
+Khi hàm ngắt chạy xong, lệnh MRET khôi phục mstatus.MIE về 1 và PC ← mepc."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 8 — Xây dựng môi trường kiểm thử UVM]               (~90 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Sang phần xây dựng môi trường kiểm thử UVM.
+
+★ Điểm khác biệt thứ hai so với đề tài tương tự:
+thay vì chỉ kiểm thử trực tiếp (directed test), em áp dụng
+Constrained-Random Verification — tức là định nghĩa ràng buộc về
+tỉ lệ loại lệnh và phân phối toán hạng, để hệ thống tự sinh hàng ngàn
+test case ngẫu nhiên.
+
+Về cấu trúc UVM:
+- riscv_transaction là Sequence Item, chứa toàn bộ thông tin một lệnh
+  và kết quả kỳ vọng result_exp.
+- riscv_driver nạp chương trình vào IMEM ảo và mô phỏng DMEM responder
+  với độ trễ ngẫu nhiên 1 đến 5 chu kỳ.
+- riscv_monitor theo dõi tín hiệu write-back: rf_we, rd_addr, wdata.
+- riscv_scoreboard dùng Reference Model tính kết quả kỳ vọng
+  và so sánh với kết quả thực của DUT qua hai FIFO.
+- riscv_coverage đo lường độ bao phủ theo 199 coverage bins.
+
+[PAUSE]
+
+Về kịch bản kiểm thử:
+Unit Test kiểm thử từng module độc lập.
+Integration Test kiểm thử toàn hệ thống với các kịch bản cụ thể:
+Data Hazard với Forwarding, Load-Use Stall, Branch Flush, và Interrupt.
+★ Đặc biệt, Stress Test tạo ra 100 lệnh ngẫu nhiên mỗi lần,
+chạy 10 lần độc lập, với tỉ lệ lệnh được điều chỉnh để
+tối đa hóa xung đột pipeline — đây là cách kiểm thử khắt khe nhất."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 9 — Kết quả thực hiện]                               (~90 giây)  ★★ MONEY SLIDE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"★★ Đây là slide kết quả — trọng tâm của bài.
+
+Về Unit Test:
+ALU: 1,000 test vectors, tất cả PASS. Đã kiểm tra đầy đủ các giá trị biên
+như 0, MAX_INT, MIN_INT, và overflow không sinh exception.
+M-Unit: PASS toàn bộ. Đặc biệt đã xác nhận 3 corner case theo đặc tả RISC-V:
+chia cho 0 trả về -1, phần dư chia cho 0 trả về số bị chia,
+và MIN_INT chia -1 trả về MIN_INT — không sinh exception.
+MUL = 2 chu kỳ, DIV = 35 chu kỳ.
+Decoder: 56 lệnh PASS, illegal instruction đúng, Immediate 6 định dạng đúng.
+LSU: PASS đầy đủ kể cả Misaligned Exception và Handshake với độ trễ ngẫu nhiên.
+
+[PAUSE]
+
+Integration Test: Cả 4 kịch bản đều PASS:
+Forwarding, Load-Use Stall, Branch Flush, và Interrupt.
+Đặc biệt với Interrupt: mepc, mcause đúng, PC về mtvec,
+và MRET khôi phục về đúng điểm ngắt.
+
+[PAUSE]
+
+★★ Kết quả nổi bật nhất:
+Stress Test: hơn 10,000 lệnh ngẫu nhiên — Scoreboard 100% PASS.
+Không phát hiện bất kỳ lỗi chức năng nào.
+Functional Coverage: ★ 100% trên toàn bộ 199 coverage bins —
+bao phủ tất cả tập lệnh RV32IM và tất cả tình huống hazard đã định nghĩa.
+
+Trong quá trình development, em đã phát hiện và sửa 3 lỗi thiết kế quan trọng:
+lỗi ưu tiên Forwarding, lỗi biên trong thuật toán Restoring Division,
+và lỗi timing khi xóa MIE trong xử lý Trap —
+đây là những lỗi tinh vi chỉ phát hiện được nhờ Constrained-Random Verification."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 10 — Kết luận và Hướng phát triển]                   (~60 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Để kết luận, luận văn đã hoàn thành đầy đủ tất cả nhiệm vụ đề ra:
+
+✓ Thiết kế thành công lõi RV32IM pipeline 5 tầng, 47 lệnh + 9 lệnh hệ thống.
+✓ Hiện thực đầy đủ 3 cơ chế hazard: Forwarding, Stall, Flush.
+✓ Tích hợp hoàn chỉnh CSR + ngắt M-mode: 8 CSR cốt lõi, 3 nguồn ngắt.
+✓ Môi trường UVM chuẩn công nghiệp: Driver, Monitor, Scoreboard, Coverage.
+✓ 100% Functional Coverage, 10,000+ lệnh Stress Test — PASS.
+
+★ Hai điểm khác biệt so với đề tài tương tự:
+Giao thức Valid/Ready chuẩn AXI-like, và
+UVM với Constrained-Random thay vì directed test thuần túy.
+
+[PAUSE]
+
+Về hạn chế: chưa tổng hợp lên FPGA, chưa có Branch Predictor và Cache.
+
+Các hướng phát triển tiếp theo:
+Ưu tiên nhất là tích hợp AXI-4 Lite và triển khai FPGA.
+Về verification: bổ sung SVA để Formal Verify tính chất x0=0 và FSM deadlock-free.
+Về tính năng: thêm S-mode và MMU để hỗ trợ FreeRTOS."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Slide 11 — Cảm ơn]                                         (~10 giây)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Em xin cảm ơn Quý Thầy Cô đã lắng nghe.
+
+Em đã hoàn thành bài trình bày và sẵn sàng nhận câu hỏi từ Hội đồng."
+
+(Cúi đầu nhẹ, đứng yên, đợi Hội đồng hỏi)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    CÂU HỎI THƯỜNG GẶP & GỢI Ý TRẢ LỜI                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q1. Tại sao chọn thuật toán Restoring Division thay vì Non-Restoring?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Thuật toán Restoring Division đơn giản hơn về mặt phần cứng —
+luôn khôi phục số dư khi thương số bit = 0, giúp logic điều khiển
+dễ kiểm chứng tính đúng đắn hơn.
+Nhược điểm là cần thêm 1 bước 'restore' mỗi chu kỳ khi thương âm,
+nhưng với 32 chu kỳ chia, hiệu suất vẫn chấp nhận được so với giải pháp phần mềm
+vốn cần hàng trăm chu kỳ.
+Non-Restoring sẽ là bước cải tiến tiếp theo nếu cần tối ưu latency."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q2. Tại sao Branch Resolution ở EX (Late) mà không phải ID (Early)?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Branch Resolution tại ID (Early) yêu cầu thêm một bộ cộng địa chỉ riêng
+tại tầng ID và xử lý forwarding phức tạp hơn để so sánh toán hạng.
+Em chọn giải pháp Late Branch tại EX để đơn giản hóa thiết kế:
+dùng lại ALU sẵn có để tính branch target và so sánh điều kiện,
+chấp nhận Branch Penalty 2 chu kỳ.
+Trong thực tế, với Branch Predictor (BTB + BHT), 90% branch được
+dự đoán đúng nên penalty thực tế gần bằng 0 —
+đó là hướng phát triển tiếp theo của em."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q3. UVM Scoreboard của em dựa vào Reference Model —
+     làm thế nào để biết Reference Model không có lỗi?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Đây là một hạn chế thực tế của mọi testbench có Scoreboard.
+Em đã giảm thiểu rủi ro này bằng hai cách:
+Một — Reference Model được implement độc lập hoàn toàn so với RTL,
+không chia sẻ code hay logic nào.
+Hai — Reference Model được kiểm tra chéo bằng Unit Test:
+kết quả của Reference Model được so sánh thủ công với tính toán tay
+cho các corner case như overflow, chia cho 0, MIN_INT ÷ -1.
+Tuy nhiên đúng là không thể đảm bảo 100% — đây là lý do tại sao
+trong công nghiệp người ta dùng thêm Formal Verification với SVA
+để chứng minh tính đúng đắn tuyệt đối của một số property."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q4. 100% Functional Coverage có nghĩa là thiết kế hoàn toàn đúng không?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Không hoàn toàn.
+100% Functional Coverage chỉ có nghĩa là đã kích hoạt tất cả 199 coverage bins
+mà em định nghĩa trong Coverage Model.
+Coverage Model của em bao phủ tất cả lệnh RV32IM và các tình huống hazard,
+nhưng không bao gồm các cross-coverage phức tạp như 'ngắt xảy ra
+đúng trong chu kỳ Load-Use Stall'.
+Trong thực tế, 100% coverage là điều kiện cần nhưng không đủ —
+verification chỉ chứng minh sự hiện diện của lỗi, không chứng minh sự vắng mặt.
+Kết quả đúng hơn là: 'không tìm thấy lỗi nào trong phạm vi
+các kịch bản kiểm thử đã định nghĩa'."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q5. Giao thức Valid/Ready của em khác gì với AXI-4 chuẩn?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Giao thức hiện tại của em là subset của AXI-4 Lite:
+có đủ tín hiệu Valid và Ready cho cả request và response,
+có Byte Enable 4-bit cho Store, và hỗ trợ độ trễ đáp ứng thay đổi.
+Điểm chưa giống AXI-4 chuẩn là: chưa tách thành 5 kênh riêng
+(Write Address, Write Data, Write Response, Read Address, Read Data),
+và chưa có tín hiệu PROT hay RESP chuẩn.
+Để tích hợp AXI-4 Lite thực sự, cần thêm một AXI Bridge module
+bên ngoài lõi, giữ nguyên interface nội bộ không thay đổi."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q6. Tại sao M-Unit dùng 35 chu kỳ cho DIV mà không phải 32?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"FSM M-Unit có 5 trạng thái: IDLE → PREPARE → DIV_LOOP (×32) → FIX_SIGN → DONE.
+32 chu kỳ là số vòng lặp thuật toán Restoring Division cho số 32-bit.
+Cộng thêm 1 chu kỳ PREPARE để chuẩn bị toán hạng (xử lý dấu, khởi tạo)
+và 1 chu kỳ FIX_SIGN để điều chỉnh dấu kết quả —
+tổng cộng là 34 chu kỳ chạy + 1 chu kỳ IDLE ban đầu = 35 chu kỳ từ khi
+lệnh DIV vào đến khi kết quả sẵn sàng."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q7. Luận văn này so sánh với đề tài RISC-V khác tại BK như thế nào?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Hầu hết các đề tài RISC-V trong nước mà em tham khảo tập trung vào
+thiết kế RTL đơn thuần, kiểm thử bằng Directed Test hoặc testbench đơn giản.
+Luận văn em có hai điểm khác biệt:
+Một — áp dụng UVM chuẩn công nghiệp với Constrained-Random Verification,
+cho phép kiểm thử số lượng lớn tổ hợp lệnh ngẫu nhiên và đo lường coverage.
+Hai — giao thức bộ nhớ Valid/Ready chuẩn AXI-like thay vì bus đồng bộ đơn giản,
+chuẩn bị cho việc tích hợp vào SoC thực tế sau này."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                       GHI NHỚ KHI BẢO VỆ                                  ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  • Nói chậm, rõ ràng — đặc biệt các thuật ngữ tiếng Anh                   ║
+║  • Nhìn hội đồng khi nói, không đọc slide                                  ║
+║  • Khi hỏi khó → thừa nhận giới hạn + chỉ ra hướng cải thiện              ║
+║  • Khi không chắc → "Đây là câu hỏi hay, em xin suy nghĩ thêm..."         ║
+║  • ★ = điểm then chốt, nói chậm, nhấn mạnh                                ║
+║  • Tổng thời gian: ~18 phút trình bày (không vội, không cắt nội dung)      ║
+╚══════════════════════════════════════════════════════════════════════════════╝

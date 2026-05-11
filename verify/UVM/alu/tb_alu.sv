@@ -329,15 +329,15 @@ module tb_alu_top;
     alu_if vif(clk);
     
     alu_in_t dut_in;
-    assign dut_in.op = alu_op_e'(vif.op);
-    assign dut_in.a  = vif.a;
-    assign dut_in.b  = vif.b;
+    assign dut_in.op       = alu_op_e'(vif.op);
+    assign dut_in.rs1_data = vif.a;
+    assign dut_in.rs2_data = vif.b;
 
     alu dut (
         .alu_in  (dut_in),
         .Zero    (vif.zero),
-        .alu_o   (vif.result),
-        .vaild_o (), .ready_o ()
+        .alu_o   (vif.result)
+        
     );
 
     initial begin

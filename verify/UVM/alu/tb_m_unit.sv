@@ -396,8 +396,8 @@ module tb_top;
     // Map Interface -> Struct Input cho DUT
     m_in_t dut_input_struct;
     assign dut_input_struct.op  = vif.op;
-    assign dut_input_struct.a_i = vif.rs1_data;
-    assign dut_input_struct.b_i = vif.rs2_data;
+    assign dut_input_struct.rs1_data = vif.rs1_data;
+    assign dut_input_struct.rs2_data = vif.rs2_data;
 
     // Instantiate DUT
     riscv_m_unit dut (

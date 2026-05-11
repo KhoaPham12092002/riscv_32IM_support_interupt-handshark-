@@ -41,7 +41,7 @@ vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
      $PKG_DIR/riscv_instr.sv \
      $SRC_DIR/core/csr.sv \
      $SRC_DIR/core/forwarding_unit.sv \
-     $SRC_DIR/core/hazard_detection_unit.sv \
+     $SRC_DIR/core/hazard_unit.sv \
      $SRC_DIR/core/riscv_control.sv \
      $VERIF_DIR/$TB_FILE
 
@@ -57,4 +57,4 @@ vsim -voptargs="+acc" -L uvm -L work \
 
 # Run simulation
 run -all
-quit -f
+#quit -f

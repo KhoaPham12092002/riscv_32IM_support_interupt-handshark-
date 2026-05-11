@@ -64,10 +64,9 @@ module pc_gen (
         if (rst_i) begin
             pc_q <= 32'h0000_0000; // Hoặc BOOT_ADDR
         end else begin
-            // ƯU TIÊN TUYỆT ĐỐI: Nếu có lệnh nhảy (branch_taken), 
-            // bắt buộc cập nhật PC ngay lập tức, bỏ qua mọi lý do trì hoãn (ready_i).
-            // Nếu không nhảy, thì mới tuân thủ luật Handshake (ready_i).
-            if (ready_i) begin 
+            // Branch/trap phải cập nhật PC ngay lập tức, bỏ qua ready_i.
+            // Sequential fetch mới tuân thủ handshake (ready_i).
+            if (branch_taken_i || trap_taken_i || ready_i) begin
                 pc_q <= pc_next;
             end
         end

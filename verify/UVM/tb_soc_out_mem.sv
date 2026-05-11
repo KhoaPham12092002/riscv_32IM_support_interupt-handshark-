@@ -52,33 +52,135 @@ class soc_item extends uvm_sequence_item;
 endclass
 
 // =============================================================================
-// 3. DRIVER
+// 3. DRIVER — Memory Mock + Valid/Ready Handshake
+// =============================================================================
+// Mỗi sequence item được nạp tuần tự vào IMEM mock tại PC = 0,4,8,...
+// IMEM/DMEM responder tôn trọng handshake với DUT (1-deep, 1-cycle latency).
 // =============================================================================
 class soc_driver extends uvm_driver #(soc_item);
     `uvm_component_utils(soc_driver)
     virtual soc_if vif;
 
-    function new(string name, uvm_component parent); super.new(name, parent); endfunction
+    // ---- Memory mock cho IMEM (PC-keyed) ----
+    logic [31:0] imem      [logic [31:0]];
+    string       imem_name [logic [31:0]];
+    logic [31:0] load_pc;
+
+    // NOP = ADDI x0, x0, 0  (cho slot bubble và địa chỉ chưa nạp)
+    localparam logic [31:0] NOP_INSTR = 32'h00000013;
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+        load_pc = 32'h0;
+    endfunction
+
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        if(!uvm_config_db#(virtual soc_if)::get(this, "", "vif", vif)) `uvm_fatal("DRV", "No VIF")
-    endfunction 
+        if(!uvm_config_db#(virtual soc_if)::get(this, "", "vif", vif))
+            `uvm_fatal("DRV", "No VIF")
+    endfunction
 
     task run_phase(uvm_phase phase);
-        vif.if_req_ready_i   = 1; vif.if_rsp_valid_i   = 0;
-        vif.dmem_req_ready_i = 1; vif.dmem_rsp_valid_i = 0; vif.dmem_err_i = 0;
-        vif.irq_sw_i = 0; vif.irq_timer_i = 0; vif.irq_ext_i = 0;
+        // ---- Khởi tạo signal ----
+        vif.if_req_ready_i   = 1;
+        vif.if_rsp_valid_i   = 0;
+        vif.if_rsp_instr_i   = NOP_INSTR;
+        vif.dmem_req_ready_i = 1;
+        vif.dmem_rsp_valid_i = 0;
+        vif.dmem_rdata_i     = 32'h0;
+        vif.dmem_err_i       = 0;
+        vif.irq_sw_i         = 0;
+        vif.irq_timer_i      = 0;
+        vif.irq_ext_i        = 0;
+        vif.test_name        = "";
 
         wait(!vif.rst);
-        
+
+        fork
+            sequence_loader();
+            imem_responder();
+            dmem_responder();
+        join_none
+    endtask
+
+    // ---- Thread 1: Lấy item từ sequencer & nạp vào memory mock ----
+    // Mỗi item chiếm đúng 1 slot 4 byte. Item if_valid=0 ⇒ NOP slot (bubble).
+    // IRQ flags được pulse 1 cycle theo từng item.
+    task sequence_loader();
         forever begin
             seq_item_port.get_next_item(req);
+
+            if (req.if_valid) begin
+                imem[load_pc]      = req.instr;
+                imem_name[load_pc] = req.test_name;
+            end else begin
+                imem[load_pc]      = NOP_INSTR;
+                imem_name[load_pc] = "TEST: Bubble";
+            end
+            load_pc += 4;
+
             @(posedge vif.clk);
-            vif.test_name        <= req.test_name;
-            vif.if_req_ready_i   <= req.if_ready;   vif.if_rsp_valid_i   <= req.if_valid;   vif.if_rsp_instr_i   <= req.instr;
-            vif.dmem_req_ready_i <= req.dmem_ready; vif.dmem_rsp_valid_i <= req.dmem_valid; vif.dmem_rdata_i     <= req.dmem_rdata; vif.dmem_err_i <= req.dmem_err;
-            vif.irq_sw_i         <= req.irq_sw;     vif.irq_timer_i      <= req.irq_timer;  vif.irq_ext_i        <= req.irq_ext;
+            vif.irq_sw_i    <= req.irq_sw;
+            vif.irq_timer_i <= req.irq_timer;
+            vif.irq_ext_i   <= req.irq_ext;
+
             seq_item_port.item_done();
+        end
+    endtask
+
+    // ---- Thread 2: IMEM responder ----
+    // 1-deep, 1-cycle latency. req_ready_i giữ = 1 (single-issue pipeline
+    // sẽ không phát overlap request); response giữ valid đến khi rsp_ready_o=1.
+    task imem_responder();
+        logic [31:0] req_addr;
+        bit          rsp_pending;
+        rsp_pending = 0;
+
+        forever begin
+            @(posedge vif.clk);
+
+            // Hạ valid khi DUT đã consume response trước đó
+            if (rsp_pending && vif.if_rsp_ready_o) begin
+                vif.if_rsp_valid_i <= 0;
+                rsp_pending = 0;
+            end
+
+            // Bắt request mới (chỉ khi không có response đang treo)
+            if (vif.if_req_valid_o && vif.if_req_ready_i && !rsp_pending) begin
+                req_addr = vif.if_req_addr_o;
+                if (imem.exists(req_addr)) begin
+                    vif.if_rsp_instr_i <= imem[req_addr];
+                    vif.test_name      <= imem_name[req_addr];
+                end else begin
+                    vif.if_rsp_instr_i <= NOP_INSTR;
+                    vif.test_name      <= "NOP_FILL";
+                end
+                vif.if_rsp_valid_i <= 1;
+                rsp_pending = 1;
+            end
+        end
+    endtask
+
+    // ---- Thread 3: DMEM responder ----
+    // Read trả 0, write ack ngay. 1-cycle latency.
+    task dmem_responder();
+        bit rsp_pending;
+        rsp_pending = 0;
+
+        forever begin
+            @(posedge vif.clk);
+
+            if (rsp_pending && vif.dmem_rsp_ready_o) begin
+                vif.dmem_rsp_valid_i <= 0;
+                rsp_pending = 0;
+            end
+
+            if (vif.dmem_req_valid_o && vif.dmem_req_ready_i && !rsp_pending) begin
+                vif.dmem_rdata_i     <= 32'h0;
+                vif.dmem_err_i       <= 0;
+                vif.dmem_rsp_valid_i <= 1;
+                rsp_pending = 1;
+            end
         end
     endtask
 endclass
@@ -289,9 +391,8 @@ class soc_scoreboard extends uvm_scoreboard;
     `uvm_component_utils(soc_scoreboard)
     virtual soc_if vif;
 
-    int total_tested = 0; int error_count = 0;
+    int total_tested = 0 ; int error_count = 0;
     int instr_total[string]; int instr_pass[string]; int instr_fail[string];
-
     bit enable_scb_report = 1; 
     bit enable_uvm_prefix = 0; 
     bit enable_debug_dump = 1;
@@ -323,7 +424,7 @@ class soc_scoreboard extends uvm_scoreboard;
                     instr_total[current_instr] = 0; instr_pass[current_instr] = 0; instr_fail[current_instr] = 0;
                 end
                 
-                if ($urandom_range(0, 100) < 5) is_error = 1; 
+// ép lỗi                if ($urandom_range(0, 100) < 5) is_error = 1; 
 
                 total_tested++; instr_total[current_instr]++;
                 

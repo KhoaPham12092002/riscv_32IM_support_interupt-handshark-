@@ -83,7 +83,10 @@ class riscv_core_driver extends uvm_driver #(riscv_core_item);
         // 1. Reset Signals
         vif.imem_ready_i <= 0; vif.imem_valid_i <= 0; vif.imem_instr_i <= 0;
         vif.dmem_ready_i <= 0; vif.dmem_valid_i <= 0; vif.dmem_rdata_i <= 0;
-        vif.rst_i <= 1; // Giữ Reset ban đầu
+        vif.rst_i <= 1;
+
+        @(posedge vif.clk_i);  // rst_i=1 must be seen at posedge (synchronous reset)
+        @(posedge vif.clk_i);  // safety margin
 
         forever begin
             seq_item_port.get_next_item(req);
@@ -113,20 +116,20 @@ class riscv_core_driver extends uvm_driver #(riscv_core_item);
 
     // --- IMEM RESPONDER ---
     task handle_imem(int delay);
-        // Wait CPU Request
+        logic [31:0] captured_addr;
         vif.imem_ready_i <= 1'b1;
         do @(posedge vif.clk_i); while (!(vif.imem_valid_o && vif.imem_ready_i));
-        vif.imem_ready_i <= 0; 
-        
+        // Capture address in Active region (before pc_gen NBA fires and pc_q increments)
+        captured_addr = vif.imem_addr_o;
+        vif.imem_ready_i <= 0;
+
         repeat(delay) @(posedge vif.clk_i);
 
-        // Send Instruction
         vif.imem_valid_i <= 1'b1;
-        // Map Address to Array
-        if (vif.imem_addr_o[13:2] < 4096)
-            vif.imem_instr_i <= fake_imem[vif.imem_addr_o[13:2]];
-        else 
-            vif.imem_instr_i <= 32'h00000013; // NOP if out of bound
+        if (captured_addr[13:2] < 4096)
+            vif.imem_instr_i <= fake_imem[captured_addr[13:2]];
+        else
+            vif.imem_instr_i <= 32'h00000013;
 
         do @(posedge vif.clk_i); while (!(vif.imem_valid_i && vif.imem_ready_o));
         vif.imem_valid_i <= 0;
@@ -134,22 +137,27 @@ class riscv_core_driver extends uvm_driver #(riscv_core_item);
 
     // --- DMEM RESPONDER ---
     task handle_dmem(int delay);
+        logic [31:0] captured_addr;
+        logic        captured_we;
+        logic [31:0] captured_wdata;
         vif.dmem_ready_i <= 1'b1;
         if (vif.dmem_valid_o) begin
             do @(posedge vif.clk_i); while (!(vif.dmem_valid_o && vif.dmem_ready_i));
+            // Capture all DMEM signals in Active region before LSU can update outputs
+            captured_addr  = vif.dmem_addr_o;
+            captured_we    = vif.dmem_we_o;
+            captured_wdata = vif.dmem_wdata_o;
             vif.dmem_ready_i <= 0;
-            
-            // WRITE
-            if (vif.dmem_we_o) begin
-                fake_dmem[vif.dmem_addr_o[11:2]] = vif.dmem_wdata_o;
+
+            if (captured_we) begin
+                fake_dmem[captured_addr[11:2]] = captured_wdata;
             end
 
             repeat(delay) @(posedge vif.clk_i);
 
-            // READ
-            if (!vif.dmem_we_o) begin
+            if (!captured_we) begin
                 vif.dmem_valid_i <= 1'b1;
-                vif.dmem_rdata_i <= fake_dmem[vif.dmem_addr_o[11:2]];
+                vif.dmem_rdata_i <= fake_dmem[captured_addr[11:2]];
                 do @(posedge vif.clk_i); while (!(vif.dmem_valid_i && vif.dmem_ready_o));
                 vif.dmem_valid_i <= 0;
             end
@@ -364,13 +372,19 @@ module tb_top;
     bit clk; always #5 clk = ~clk; 
     riscv_core_if vif(clk);
 
+    // Debug wires từ riscv_core output ports — không dùng hierarchical ref vào DUT
+    wire        dbg_wb_we;
+    wire [4:0]  dbg_wb_rd;
+
     riscv_core dut (
         .clk_i(clk), .rst_i(vif.rst_i),
         .imem_addr_o(vif.imem_addr_o), .imem_valid_o(vif.imem_valid_o), .imem_ready_i(vif.imem_ready_i),
         .imem_instr_i(vif.imem_instr_i), .imem_valid_i(vif.imem_valid_i), .imem_ready_o(vif.imem_ready_o),
         .dmem_addr_o(vif.dmem_addr_o), .dmem_wdata_o(vif.dmem_wdata_o), .dmem_be_o(vif.dmem_be_o),
         .dmem_we_o(vif.dmem_we_o), .dmem_valid_o(vif.dmem_valid_o), .dmem_ready_i(vif.dmem_ready_i),
-        .dmem_rdata_i(vif.dmem_rdata_i), .dmem_valid_i(vif.dmem_valid_i), .dmem_ready_o(vif.dmem_ready_o)
+        .dmem_rdata_i(vif.dmem_rdata_i), .dmem_valid_i(vif.dmem_valid_i), .dmem_ready_o(vif.dmem_ready_o),
+        .dbg_wb_we_o(dbg_wb_we),
+        .dbg_wb_rd_o(dbg_wb_rd)
     );
 
     initial begin
@@ -378,18 +392,55 @@ module tb_top;
         run_test("riscv_hazard_test"); 
     end
     
-    // --- DEBUG MONITOR ---
-    // Hiển thị các lệnh được nạp vào
-    // Và quan trọng nhất: Hiển thị trạng thái Hazard (Stall/Flush)
-    always @(posedge clk) begin
-        if (dut.u_hazard_unit.pc_stall_o) 
-            $display("[HAZARD-DETECTED] Time: %0t | STALL REQUESTED! (Load-Use)", $time);
-            
-        if (dut.u_hazard_unit.id_ex_flush_o)
-             $display("[HAZARD-DETECTED] Time: %0t | FLUSH REQUESTED! (Branch/Load-Use)", $time);
+    // ==========================================================================
+    // PIPELINE DATA PASSING REPORT
+    // Lý do dùng negedge: tại posedge, flip-flop NBA chưa cập nhật (Active
+    // region). Đến negedge (5ns sau), tất cả NBA đã settle → giá trị chính xác.
+    // ==========================================================================
 
-        if (dut.mem_wb_valid_o && dut.mem_wb_out.ctrl.rf_we && dut.mem_wb_out.rd_addr != 0)
-            $display("[WB-RESULT] Time: %0t | x%0d = %0d", $time, dut.mem_wb_out.rd_addr, $signed(dut.wb_final_data));
+    int wb_count    = 0;
+    int stall_count = 0;
+    int flush_count = 0;
+    int cycle_after_rst = 0;
+
+    always @(negedge clk) begin
+        if (!vif.rst_i) begin // Không monitor khi đang reset
+            cycle_after_rst++;
+            // 10 cycle đầu sau reset: in thẳng giá trị signal để xác nhận không còn X
+            if (cycle_after_rst <= 10)
+                $display("[DBG@%8t] cy=%0d stall=%b flush=%b wb_we=%b wb_rd=%0d",
+                    $time, cycle_after_rst,
+                    dut.ctrl_force_stall_id, dut.ctrl_flush_id_ex,
+                    dbg_wb_we, dbg_wb_rd);
+            // --- Hazard signals: hierarchical ref vào wire 1-cấp (ctrl_* visible với +acc=all) ---
+            if (dut.ctrl_force_stall_id) begin
+                stall_count++;
+                $display("[STALL  @%8t] Load-Use stall       #%0d", $time, stall_count);
+            end
+            if (dut.ctrl_flush_id_ex) begin
+                flush_count++;
+                $display("[FLUSH  @%8t] Control hazard flush  #%0d", $time, flush_count);
+            end
+
+            // --- WB stage: dùng debug output port (tránh Questa vopt X-collapse) ---
+            if (dbg_wb_we && dbg_wb_rd != 5'b0) begin
+                wb_count++;
+                $display("[WB-RES @%8t] x%02d written", $time, dbg_wb_rd);
+            end
+        end
+    end
+
+    // Tóm tắt cuối simulation
+    final begin
+        $display("");
+        $display("============================================================");
+        $display("   PIPELINE DATA PASSING REPORT");
+        $display("============================================================");
+        $display("   Cycles monitored (post-rst): %0d", cycle_after_rst);
+        $display("   WB Instructions committed : %0d", wb_count);
+        $display("   Load-Use Stalls           : %0d", stall_count);
+        $display("   Control Hazard Flushes    : %0d", flush_count);
+        $display("============================================================");
     end
 
 endmodule

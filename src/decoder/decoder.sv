@@ -9,18 +9,8 @@ module decoder
     output logic [31:0]        imm_o,
     output logic [4:0]       rd_addr_o,
     output logic [4:0]       rs1_addr_o,
-    output logic [4:0]       rs2_addr_o,
-
-    // Upstream (Nhận từ IF/ID Pipeline Reg)
-    input  logic        valid_i, 
-    output logic        ready_o,
-    
-    // Downstream (Gửi tới ID/EX Pipeline Reg)
-    output logic        valid_o,
-    input  logic        ready_i
+    output logic [4:0]       rs2_addr_o
 );
-    assign valid_o = valid_i;
-    assign ready_o = ready_i;
 
 // 1. INSTRUCTION SLICING (Internal Data Types)
     instr_t instr; 
@@ -49,7 +39,6 @@ module decoder
     ctrl_o.csr_req = CSR_REQ_RST;
     
     // Instruction Decoding
-    if (valid_i) begin
      casez (instr.raw)
         // GROUP 1: UPPER IMMEDIATE (U-Type)
             LUI: begin
@@ -669,7 +658,6 @@ module decoder
                 ctrl_o.illegal_instr = 1'b1; // Báo lệnh không hợp lệ (Trap)
                 end
     endcase
-    end
     end 
 // 3. IMMEDIATE GENERATION
     always_comb begin

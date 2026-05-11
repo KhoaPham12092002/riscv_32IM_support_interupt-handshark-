@@ -8,8 +8,7 @@ module tb_soc_simple;
     // Instance của SoC Top
     soc_top u_soc (
         .clk_i      (clk),
-        .rst_i      (rst),
-        .debug_pc_o (debug_pc)
+        .rst_i      (rst)
     );
 
     // Clock 100MHz
@@ -26,23 +25,17 @@ module tb_soc_simple;
         $stop;
     end
 
-    // --- DEBUG SPY (Đã sửa đường dẫn thành u_soc.u_core) ---
+    // --- DEBUG SPY (Đã sửa đường dẫn thành u_soc.u_datapath) ---
     always @(posedge clk) begin
-        // Quan sát tín hiệu Writeback nằm sâu trong u_soc -> u_core
-        if (u_soc.u_core.mem_wb_valid_o && u_soc.u_core.mem_wb_ready_i && u_soc.u_core.mem_wb_out.ctrl.rf_we) begin
-            if (u_soc.u_core.mem_wb_out.rd_addr != 0) begin
+        // Quan sát tín hiệu Writeback nằm sâu trong u_soc -> u_datapath
+        if (u_soc.u_datapath.mem_wb_valid && u_soc.u_datapath.mem_wb_ready && u_soc.u_datapath.mem_wb_out.ctrl.rf_we) begin
+            if (u_soc.u_datapath.mem_wb_out.rd_addr != 0) begin
                 $display("[SOC-LOG] Time: %0t | PC: %h | Write x%0d = %h (Dec: %0d)", 
                          $time, 
-                         u_soc.u_core.mem_wb_out.pc_plus4,
-                         u_soc.u_core.mem_wb_out.rd_addr, 
-                         u_soc.u_core.wb_final_data,
-                         $signed(u_soc.u_core.wb_final_data));
-                /*$display("[SOC-LOG] Time: %0t | PC: %h | Write x%0d = %h (Dec: %0d)", 
-                $time, 
-                u_soc.debug_pc_o, // <--- SỬA THÀNH CÁI NÀY CHO CHẮC
-                u_soc.u_core.mem_wb_out.rd_addr, 
-                u_soc.u_core.wb_final_data,
-                $signed(u_soc.u_core.wb_final_data));*/
+                         u_soc.u_datapath.mem_wb_out.pc_plus4,
+                         u_soc.u_datapath.mem_wb_out.rd_addr, 
+                         u_soc.u_datapath.rf_wdata,
+                         $signed(u_soc.u_datapath.rf_wdata));
             end
         end
     end

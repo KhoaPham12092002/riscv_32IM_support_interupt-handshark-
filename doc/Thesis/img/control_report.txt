@@ -1,0 +1,28 @@
+ ==========================================================
+#              CONTROL UNIT SCOREBOARD REPORT               
+# ==========================================================
+#  Total Cases Tested    : 50004
+#  RESULT: PASSED (0 Errors found)
+# ==========================================================
+# 
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_report_server.svh(847) @ 1000085000: reporter [UVM/REPORT/SERVER] 
+# --- UVM Report Summary ---
+# 
+# ** Report counts by severity
+# UVM_INFO :    9
+# UVM_WARNING :    0
+# UVM_ERROR :    0
+# UVM_FATAL :    0
+# ** Report counts by id
+# [NO_DPI_TSTNAME]     1
+# [RNTST]     1
+# [SEQ]     4
+# [TEST_DONE]     1
+# [UVM/COMP/NAMECHECK]     1
+# [UVM/RELNOTES]     1
+# 
+# ** Note: $finish    : /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(517)
+#    Time: 1000085 ns  Iteration: 68  Instance: /tb_top
+# End time: 09:10:26 on May 09,2026, Elapsed time: 0:00:17
+# Errors: 0, Warnings: 1
+

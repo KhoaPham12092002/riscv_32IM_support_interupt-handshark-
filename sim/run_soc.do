@@ -20,10 +20,10 @@ vlog -sv ../verify/tb_soc_simple.sv
 vsim -voptargs=+acc work.tb_soc_simple
 
 # Add Wave
-add wave -position insertpoint sim:/tb_soc_simple/u_soc/clk_i
-add wave -position insertpoint sim:/tb_soc_simple/u_soc/rst_i
-add wave -position insertpoint -radix hex sim:/tb_soc_simple/u_soc/u_core/imem_addr_o
-add wave -position insertpoint -radix hex sim:/tb_soc_simple/u_soc/u_core/u_reg_file/rf
+# add wave -position insertpoint sim:/tb_soc_simple/u_soc/clk_i
+# add wave -position insertpoint sim:/tb_soc_simple/u_soc/rst_i
+# add wave -position insertpoint -radix hex sim:/tb_soc_simple/u_soc/u_core/imem_addr_o
+# add wave -position insertpoint -radix hex sim:/tb_soc_simple/u_soc/u_core/u_reg_file/rf
 
 # Run
 run -all

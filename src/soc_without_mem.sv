@@ -54,6 +54,9 @@ module soc_without_mem (
     logic [4:0]  hz_mem_rd_addr; logic hz_mem_reg_we;
     logic [4:0]  hz_wb_rd_addr;  logic hz_wb_reg_we;
 
+    // [BUG #1 FIXED]: Wire riêng để nhận lỗi misaligned từ LSU bên trong datapath
+    logic lsu_err_internal;
+
     // --- Cáp Lệnh Control -> Datapath ---
     logic        ctrl_force_stall_id, ctrl_flush_if_id, ctrl_flush_id_ex;
     logic [1:0]  ctrl_fwd_rs1_sel, ctrl_fwd_rs2_sel, ctrl_pc_sel;
@@ -96,6 +99,7 @@ module soc_without_mem (
         .hz_ex_wb_sel_o        (hz_ex_wb_sel),      .branch_taken_o        (branch_taken),
         .hz_mem_rd_addr_o      (hz_mem_rd_addr),    .hz_mem_reg_we_o       (hz_mem_reg_we),
         .hz_wb_rd_addr_o       (hz_wb_rd_addr),     .hz_wb_reg_we_o        (hz_wb_reg_we),
+        .lsu_err_o             (lsu_err_internal),
 
         // Từ Control
         .ctrl_force_stall_id_i (ctrl_force_stall_id), 
@@ -125,8 +129,9 @@ module soc_without_mem (
         .hz_mem_reg_we_i       (hz_mem_reg_we),     .hz_wb_rd_addr_i       (hz_wb_rd_addr),
         .hz_wb_reg_we_i        (hz_wb_reg_we),
         
-        // Nhận lỗi trực tiếp từ chân dmem_err_i để sinh tín hiệu Ngắt
-        .lsu_err_i             (dmem_err_i),
+        // [BUG #1 FIXED]: Nhận lỗi misaligned từ LSU nội bộ (lsu_err_internal),
+        // KHÔNG phải dmem_err_i từ bên ngoài (luôn = 0 trong testbench).
+        .lsu_err_i             (lsu_err_internal),
 
         // Lệnh xuống Datapath
         .ctrl_force_stall_id_o (ctrl_force_stall_id),

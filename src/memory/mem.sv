@@ -2,7 +2,7 @@
 import riscv_32im_pkg::*;
 
 module mem #(
-    parameter string IMEM_HEX = "program.hex",
+    parameter string IMEM_HEX = riscv_32im_pkg::IMEM_HEX_FILE,
     parameter int    IMEM_SZ  = riscv_32im_pkg::IMEM_SIZE_BYTES,
     parameter int    DMEM_SZ  = riscv_32im_pkg::DMEM_SIZE_BYTES
 ) (
@@ -103,6 +103,7 @@ module mem #(
     );
 
     // 3. DATA MEMORY (Nơi chứa dữ liệu thực sự)
+    // dmem mặc định dùng DMEM_HEX_FILE từ package
     dmem #(
         .MEM_SIZE (DMEM_SZ)
     ) u_dmem (

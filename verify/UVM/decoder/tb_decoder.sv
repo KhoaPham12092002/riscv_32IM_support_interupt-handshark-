@@ -525,12 +525,7 @@ module tb_top;
         .imm_o      (vif.imm),
         .rd_addr_o  (vif.rd_addr),
         .rs1_addr_o (vif.rs1_addr),
-        .rs2_addr_o (vif.rs2_addr),
-        
-        .valid_i    (vif.valid_i),
-        .ready_o    (vif.ready_o),
-        .valid_o    (vif.valid_o),
-        .ready_i    (vif.ready_i)
+        .rs2_addr_o (vif.rs2_addr)
     );
 
     initial begin

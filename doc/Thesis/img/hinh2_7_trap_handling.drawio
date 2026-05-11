@@ -1,0 +1,86 @@
+<mxfile host="draw.io" modified="2024-05-03T10:00:00.000Z" agent="Gemini" version="1.0" etag="auto" type="device">
+  <diagram id="diagram-1" name="Page-1">
+    <mxGraphModel dx="818" dy="468" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="500" pageHeight="860" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="100" value="&lt;b&gt;Hình 2.7 — Quy trình xử lý ngắt (Trap Handling — M-mode)&lt;/b&gt;" style="text;html=1;fontSize=13;fontStyle=1;strokeColor=none;fillColor=none;align=center;" vertex="1" parent="1">
+          <mxGeometry x="30" y="4" width="440" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="Chạy bình thường (Normal Execution)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="40" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="Ngắt / Ngoại lệ phát sinh?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;rounded=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="104" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="Lưu trạng thái:&lt;br&gt;mepc ← PC&lt;br&gt;mcause ← cause&lt;br&gt;mtval ← addr/instr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="184" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="Cập nhật mstatus:&lt;br&gt;MPIE ← MIE&lt;br&gt;MIE ← 0  (tắt ngắt)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="264" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="Nhảy đến handler:&lt;br&gt;PC ← mtvec" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="334" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="ISR thực thi&lt;br&gt;(Interrupt Service Routine)&lt;br&gt;— xử lý nguyên nhân ngắt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;dashed=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="398" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="Thực thi MRET" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="478" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="16" value="Khôi phục trạng thái:&lt;br&gt;MIE ← MPIE&lt;br&gt;PC ← mepc" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="542" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="18" value="Tiếp tục thực thi&lt;br&gt;(Resume Execution)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="150" y="612" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="21" value="CSR được cập nhật:&lt;br&gt;mepc, mcause,&lt;br&gt;mtval, mstatus" style="text;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;fontSize=8;align=left;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="410" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="3" value="irq / exception" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="2" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="Có (taken)" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="4" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="6" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="8" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="10" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="12" target="14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="14" target="16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" value="" style="html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="16" target="18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="19" value="" style="html=1;endArrow=block;endFill=1;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#82b366;dashed=1;" edge="1" parent="1" source="18" target="2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="100" y="634" />
+              <mxPoint x="100" y="62" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="20" value="Không" style="html=1;endArrow=block;endFill=1;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;entryX=1;entryY=0.5;strokeWidth=1.5;" edge="1" parent="1" source="4" target="2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="129" />
+              <mxPoint x="410" y="62" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

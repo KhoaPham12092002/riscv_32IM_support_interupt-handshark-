@@ -1,0 +1,92 @@
+<mxfile host="gemini.google.com" type="device">
+  <diagram id="diagram-1" name="Page-1">
+    <mxGraphModel dx="1426" dy="782" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="700" pageHeight="560" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="25" value="Hình 2.8 — Sơ đồ phân cấp kiến trúc UVM Testbench" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="0" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 1: uvm_test -->
+        <mxCell id="2" value="uvm_test&lt;br&gt;(riscv_core_test)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fontSize=10;fontStyle=1;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="250" y="40" width="200" height="44" as="geometry" />
+        </mxCell>
+
+        <!-- Layer 2: uvm_env container -->
+        <mxCell id="4" value="uvm_env  (riscv_env)" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=6;verticalAlign=top;fontSize=9;fontStyle=0;fillColor=#fff9e6;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="114" width="540" height="380" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from uvm_test to uvm_env -->
+        <mxCell id="3" value="create" style="html=1;endArrow=open;endSize=8;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="2" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 3: uvm_agent container -->
+        <mxCell id="5" value="uvm_agent  (riscv_agent)" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=6;verticalAlign=top;fontSize=9;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="4">
+          <mxGeometry x="20" y="36" width="280" height="200" as="geometry" />
+        </mxCell>
+        
+        <!-- Components inside uvm_agent -->
+        <mxCell id="6" value="Sequencer&lt;br&gt;(uvm_sequencer)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=9;fillColor=#6c8ebf;strokeColor=#4a6d9c;fontColor=#ffffff;" vertex="1" parent="5">
+          <mxGeometry x="10" y="40" width="80" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="Driver&lt;br&gt;(uvm_driver)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=9;fillColor=#6c8ebf;strokeColor=#4a6d9c;fontColor=#ffffff;" vertex="1" parent="5">
+          <mxGeometry x="100" y="40" width="80" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="Monitor&lt;br&gt;(uvm_monitor)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=9;fillColor=#6c8ebf;strokeColor=#4a6d9c;fontColor=#ffffff;" vertex="1" parent="5">
+          <mxGeometry x="190" y="40" width="80" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from Sequencer to Driver -->
+        <mxCell id="9" value="seq_item" style="html=1;endArrow=open;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=8;" edge="1" parent="5" source="6" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Scoreboard -->
+        <mxCell id="10" value="Scoreboard&lt;br&gt;(Reference Model)&lt;br&gt;uvm_scoreboard" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=9;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="4">
+          <mxGeometry x="330" y="36" width="180" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Coverage Collector -->
+        <mxCell id="11" value="Coverage Collector&lt;br&gt;uvm_subscriber" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=9;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="4">
+          <mxGeometry x="330" y="146" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- TLM Port Arrows -->
+        <mxCell id="12" value="TLM Analysis Port" style="edgeStyle=entityRelationEdgeStyle;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#d6220a;exitX=1;exitY=0.5;entryX=0;entryY=0.5;dashed=1;fontSize=8;fontColor=#d6220a;fontStyle=1;" edge="1" parent="1" source="8" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="TLM Analysis Port" style="edgeStyle=entityRelationEdgeStyle;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#9673a6;exitX=1;exitY=0.5;entryX=0;entryY=0.5;dashed=1;fontSize=8;fontColor=#9673a6;fontStyle=1;" edge="1" parent="1" source="8" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="14" value="uvm_test" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=8;fontStyle=0;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#000000;" vertex="1" parent="1">
+            <mxGeometry x="50" y="520" width="100" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="uvm_agent" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=8;fontStyle=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" vertex="1" parent="1">
+            <mxGeometry x="160" y="520" width="100" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="Scoreboard" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=8;fontStyle=0;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" vertex="1" parent="1">
+            <mxGeometry x="270" y="520" width="100" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="Coverage" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=8;fontStyle=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" vertex="1" parent="1">
+            <mxGeometry x="380" y="520" width="100" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" style="edgeStyle=none;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#d6220a;dashed=1;html=1;" edge="1" parent="1">
+            <mxGeometry width="50" height="50" relative="1" as="geometry">
+                <mxPoint x="490" y="531" as="sourcePoint"/>
+                <mxPoint x="520" y="531" as="targetPoint"/>
+            </mxGeometry>
+        </mxCell>
+        <mxCell id="19" value="TLM Port" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=8;" vertex="1" parent="1">
+            <mxGeometry x="525" y="520" width="100" height="22" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,219 @@
+==============================================================================
+  KẾ HOẠCH HOÀN THIỆN LUẬN VĂN — Phạm Tiến Khoa — RV32IM + UVM
+  Cập nhật: 03/05/2026
+==============================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TRẠNG THÁI TỔNG QUAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✅ Văn bản chính (6 chương + phụ lục + tài liệu tham khảo) — XONG
+  ✅ Hình drawio chương 2, 3, 4 — phần lớn XONG (xem chi tiết bên dưới)
+  ⚠️ 1 hình drawio còn cần sửa: hinh2_8
+  ❌ 8 hình chương 5 — CẦN CHỤP TỪ QUESTASIM (chưa làm)
+  ❌ Chèn hình vào thesis_khoa_updated.docx — CẦN LÀM SAU KHI CÓ HÌNH
+  ❌ Một số mục hành chính còn trống (lời cảm ơn, trang bìa)
+
+==============================================================================
+  PHẦN 1 — TRẠNG THÁI HÌNH DRAWIO
+==============================================================================
+
+  ✅ = Dùng được ngay    ⚠️ = Cần sửa    ❌ = Chưa có
+
+── Chương 2 ──────────────────────────────────────────────────────────────────
+
+  ✅ hinh2_2_register_table.drawio      — Bảng thanh ghi RV32I x0–x31
+  ✅ hinh2_3_pipeline_timing.drawio     — Pipeline timing diagram 5 tầng
+  ✅ hinh2_4.drawio                     — Timing diagram RAW Hazard + Forwarding
+  ✅ hinh2_5_load_use_hazard.drawio     — Timing diagram Load-Use Stall (1 NOP)
+  ✅ hinh2_6_control_hazard.drawio      — Timing diagram Branch Flush (2 NOP)
+  ✅ hinh2_7_trap_handling.drawio       — Flowchart Trap Handling [Fixed 03/05]
+  ⚠️ hinh2_8_uvm_hierarchy.drawio      — Phân cấp UVM [Cần rewrite flat]
+        Lý do: Nested cells → TLM arrows render sai toạ độ
+        Việc cần làm: Xóa toàn bộ, vẽ lại với parent="1" cho tất cả cell
+        Prompt vẽ lại: xem ghi chú trong se_chinh.txt mục HÌNH 2.8
+
+── Chương 3 ──────────────────────────────────────────────────────────────────
+
+  ✅ hinh3_1_tong_quat_he_thong.drawio  — Sơ đồ khối tổng quát [Fixed 03/05]
+  ✅ hinh3_2_datapath.drawio            — Datapath 5 tầng chi tiết [Tạo 04/05]
+  ✅ hinh3_3_munit_fsm.drawio           — FSM M-Unit (MUL/DIV)
+  ✅ hinh3_4_forwarding_logic.drawio    — Logic Forwarding Unit
+
+── Chương 4 ──────────────────────────────────────────────────────────────────
+
+  ✅ hinh4_1_uvm_environment.drawio     — UVM Environment kết nối [Fixed 04/05]
+  ✅ hinh4_2_transaction_class.drawio   — Transaction class diagram
+
+── Chương 5 — TẤT CẢ CHƯA CÓ, CẦN CHỤP TỪ QUESTASIM ───────────────────────
+
+  ❌ hinh5_1  — Waveform ALU unit test
+        Lệnh: cd sim && vsim -do run_alu.do
+        Tín hiệu cần hiện: alu_op, operand_a, operand_b, result
+        Highlight: ADD overflow, SLT với số âm
+
+  ❌ hinh5_2  — Waveform M-Unit phép chia (35 chu kỳ)
+        Lệnh: cd sim && vsim -do run_m_unit.do
+        Tín hiệu: state, dividend, divisor, quotient, remainder, done
+        Highlight: các bước chuyển state FSM IDLE→PREPARE→DIV_LOOP→FIX_SIGN→DONE
+
+  ❌ hinh5_3  — Waveform Forwarding EX→EX và MEM→EX
+        Lệnh: cd sim && vsim -do run_core.do
+        Tín hiệu: fwd_rs1_sel, fwd_rs2_sel, alu_result, rf_wdata
+        Highlight: sel=01 (MEM→EX) và sel=10 (WB→EX)
+
+  ❌ hinh5_4  — Waveform Load-Use Stall (1 NOP cycle)
+        Kịch bản: LW x2,0(x1) → ADD x3,x2,x1 (thêm lệnh tiếp ngay sau)
+        Tín hiệu: ctrl_stall_if, ctrl_stall_id, id_ex pipeline reg valid
+        Highlight: 1 chu kỳ NOP chèn vào (id_ex_valid=0)
+
+  ❌ hinh5_5  — Waveform Branch Taken + Pipeline Flush
+        Kịch bản: BEQ taken → 2 lệnh bị flush
+        Tín hiệu: branch_taken, ctrl_flush_if_id, ctrl_flush_id_ex, PC
+        Highlight: PC nhảy, 2 chu kỳ NOP sau branch
+
+  ❌ hinh5_6  — Waveform Interrupt Handling (đầy đủ)
+        Kịch bản: irq_ext_i=1 → trap → ISR → MRET
+        Tín hiệu: irq_ext_i, ctrl_trap_valid, PC, mepc, mcause, mtvec
+        Highlight: PC nhảy về mtvec (ISR), sau MRET quay về mepc
+
+  ❌ hinh5_7  — Screenshot UVM Log (Pass/Fail summary)
+        Nội dung: UVM_INFO PASS messages + 0 UVM_ERROR + số lệnh đã chạy
+        Cách chụp: Terminal QuestaSim sau khi chạy run_core.do
+
+  ❌ hinh5_8  — Screenshot Coverage Report (100%)
+        Cách mở: Simulate → Coverage Report → HTML/Table trong QuestaSim
+        Nội dung: 7 Covergroup với tỉ lệ 100%
+
+==============================================================================
+  PHẦN 2 — TRẠNG THÁI NỘI DUNG VĂN BẢN
+==============================================================================
+
+  File đang làm việc: thesis_khoa_updated.docx
+
+── Đã hoàn thành ─────────────────────────────────────────────────────────────
+
+  ✅ Chương 1: Giới thiệu
+  ✅ Chương 2: Cơ sở lý thuyết
+  ✅ Chương 3: Thiết kế phần cứng
+  ✅ Chương 4: Thiết kế UVM Testbench (nội dung code thực tế từ repository)
+  ✅ Chương 5: Kết quả (cấu trúc + số liệu — THIẾU HÌNH waveform)
+  ✅ Chương 6: Kết luận và Hướng phát triển
+  ✅ Tài liệu tham khảo (10 tài liệu IEEE format)
+  ✅ Phụ lục A–E (Module tree, CSR map, Memory map, Package, Quy trình sim)
+
+── Còn thiếu — NỘI DUNG CÁ NHÂN (Claude không thể làm thay) ─────────────────
+
+  ❌ Lời cảm ơn — Điền tay: GVHD Trần Hoàng Linh, Khoa Điện–Điện tử, gia đình
+  ❌ Trang bìa — Điền: "TP. HỒ CHÍ MINH, THÁNG ___ NĂM 2026" + số lớp
+  ❌ Trang nhiệm vụ LVTN — Cần ngày/chữ ký GVHD
+
+── Còn thiếu — NỘI DUNG KỸ THUẬT ────────────────────────────────────────────
+
+  ❌ Bảng thông số thiết kế (Section 3 — đang để trống)
+        Mở Word → Section 3 → tìm bảng trống → điền số liệu:
+        | Kiến trúc ISA         | RV32IM (47 lệnh + 6 lệnh CSR)   |
+        | Số tầng pipeline      | 5 (IF, ID, EX, MEM, WB)         |
+        | Tần số mục tiêu       | 50 MHz (FPGA Cyclone V)          |
+        | Kích thước IMEM/DMEM  | 4 KB (1024 × 32-bit) mỗi loại   |
+        | Số thanh ghi CSR      | 9 (mstatus, mie, mip, mtvec,     |
+        |                       |    mepc, mcause, mtval,           |
+        |                       |    mscratch, mhartid)             |
+        | Branch Penalty        | 2 chu kỳ (Late Branch tại EX)    |
+        | Load-Use Stall        | 1 chu kỳ                         |
+        | Phép chia (DIV)       | 35 chu kỳ (Restoring Division)   |
+        | Phép nhân (MUL)       | 2 chu kỳ                         |
+
+  ❌ Chèn 13 hình drawio vào đúng vị trí trong Word (sau khi vẽ xong)
+        7 hình chương 2 (hinh2_2 đến 2_8)
+        4 hình chương 3 (hinh3_1 đến 3_4)
+        2 hình chương 4 (hinh4_1, 4_2)
+
+  ❌ Chèn 8 hình chương 5 (sau khi chụp từ QuestaSim)
+
+  ❌ Bổ sung bảng Stress Test đầy đủ (hiện thiếu lần chạy 6–10)
+
+  ❌ Cập nhật Mục lục + Danh sách hình/bảng (làm CUỐI CÙNG, sau khi thêm hình)
+        Danh sách hình cần có ~21 hình (hiện chỉ có 2)
+        Trong Word: References → Update Table of Contents
+        Thêm: Bảng 2 (Coverage), Bảng 3 (CSR map) vào danh sách bảng
+
+==============================================================================
+  PHẦN 3 — THỨ TỰ ƯU TIÊN (làm theo thứ tự này)
+==============================================================================
+
+  ── NHÓM A: Làm NGAY — Ảnh hưởng trực tiếp đến bảo vệ ─────────────────────
+
+  A1. Sửa hinh2_8_uvm_hierarchy.drawio
+        Xóa toàn bộ, vẽ lại flat (tất cả parent="1")
+        Dùng background rect để visual grouping — KHÔNG dùng nested cell
+        Chi tiết layout: xem se_chinh.txt mục HÌNH 2.8
+
+  A2. Điền bảng thông số thiết kế vào thesis_khoa_updated.docx
+        Mở Word → Section 3 → điền số liệu trong bảng ở Phần 2
+
+  A3. Chạy sim QuestaSim → chụp hinh5_5 (Branch Flush) + hinh5_6 (Interrupt)
+        Đây là 2 hình GVHD sẽ hỏi kỹ nhất
+        Lưu PNG vào: doc/Thesis/img/
+
+  A4. Chụp hinh5_7 (UVM Log) + hinh5_8 (Coverage Report)
+        Cần làm sớm để chứng minh verification environment hoạt động
+
+  ── NHÓM B: Làm sau nhóm A ──────────────────────────────────────────────────
+
+  B1. Chụp hinh5_3 (Forwarding) + hinh5_4 (Load-Use Stall)
+  B2. Chụp hinh5_1 (ALU) + hinh5_2 (M-Unit DIV 35 cycle)
+  B3. Xuất 13 hình drawio (chương 2–4) sang PNG
+  B4. Chèn TẤT CẢ hình drawio vào đúng vị trí trong Word
+
+  ── NHÓM C: Làm sau nhóm B ──────────────────────────────────────────────────
+
+  C1. Chèn 8 hình waveform chương 5 vào Word
+  C2. Bổ sung bảng Stress Test (lần 6–10)
+  C3. Lời cảm ơn (viết tay)
+  C4. Trang bìa: điền tháng/năm và số lớp
+
+  ── NHÓM D: Làm CUỐI CÙNG trước khi nộp ────────────────────────────────────
+
+  D1. Cập nhật Mục lục tự động (Word: References → Update Table of Contents)
+  D2. Cập nhật Danh sách hình (thêm ~21 hình)
+  D3. Cập nhật Danh sách bảng (thêm Bảng 2: Coverage, Bảng 3: CSR map)
+  D4. Kiểm tra Phụ lục E: đường dẫn file sim đúng với thư mục thực tế
+        verify/UVM/core/ — cần khớp với run script thực tế
+  D5. Kiểm tra format toàn bộ (font, cỡ chữ, spacing) theo mẫu khoa
+
+==============================================================================
+  PHẦN 4 — GHI CHÚ KỸ THUẬT
+==============================================================================
+
+  Xuất hình drawio sang PNG:
+    draw.io desktop: File → Export As → PNG (Scale 150%, Transparent bg: OFF)
+    Hoặc app.diagrams.net: Extra → Edit Diagram → File → Export
+
+  Chụp QuestaSim waveform:
+    File → Export → Image (PNG) trong QuestaSim (cách tốt nhất)
+    Hoặc Snipping Tool → crop đúng vùng waveform
+
+  Chèn hình vào Word đúng chuẩn:
+    Insert → Picture → From File → chọn PNG
+    Canh giữa, thêm caption: "Hình X.Y — Tên hình"
+    Dùng Insert → Caption để tự động đánh số (quan trọng cho mục lục hình)
+
+==============================================================================
+  TÓM TẮT VIỆC CÒN LẠI
+==============================================================================
+
+  Hình cần tạo/sửa:
+    1 hình cần vẽ lại (hinh2_8_uvm_hierarchy)
+    8 hình cần chụp từ QuestaSim (hinh5_1 → 5_8)
+
+  Nội dung văn bản:
+    1 bảng cần điền (thông số thiết kế)
+    3 mục cá nhân (lời cảm ơn, trang bìa, nhiệm vụ LVTN)
+    Chèn 21 hình vào đúng vị trí trong Word
+
+  Hoàn thiện cuối:
+    Cập nhật mục lục + danh sách hình/bảng
+    Kiểm tra format toàn bộ
+
+==============================================================================

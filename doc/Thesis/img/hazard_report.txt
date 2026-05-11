@@ -1,0 +1,654 @@
+#   ***********       IMPORTANT RELEASE NOTES         ************
+# 
+#   You are using a version of the UVM library that has been compiled
+#   with `UVM_NO_DEPRECATED undefined.
+#   See http://www.eda.org/svdb/view.php?id=3313 for more details.
+# 
+#   You are using a version of the UVM library that has been compiled
+#   with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+#   See http://www.eda.org/svdb/view.php?id=3770 for more details.
+# 
+#       (Specify +UVM_NO_RELNOTES to turn off this notice)
+# 
+# ================================================================
+#  TB: tb_hazadetec_thesis | Section: 5.3.2 | Figure: 5.6
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(453) @ 0: reporter [NO_DPI_TSTNAME] UVM_NO_DPI defined--getting UVM_TESTNAME directly, without DPI
+# UVM_INFO @ 0: reporter [RNTST] Running test hz_test...
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_traversal.svh(279) @ 0: reporter [UVM/COMP/NAMECHECK] This implementation of the component name checks requires DPI to be enabled
+# [TEST  1] LU stall rs1
+#    Stimulus : rs1=3 rs2=9 rd=3 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 11000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  2] LU stall rs2
+#    Stimulus : rs1=9 rs2=5 rd=5 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 21000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  3] Branch flush
+#    Stimulus : rs1=1 rs2=2 rd=8 we=1 wb_sel=010 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 31000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  4] LU+Jump jump-wins
+#    Stimulus : rs1=3 rs2=9 rd=3 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 41000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  5] x0 filter
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 51000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  6] WE=0 filter
+#    Stimulus : rs1=3 rs2=9 rd=3 we=0 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 61000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  7] WB_ALU no stall
+#    Stimulus : rs1=7 rs2=9 rd=7 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 71000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  8] LU rs1 only
+#    Stimulus : rs1=6 rs2=9 rd=6 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 81000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  9] LU rs2 only
+#    Stimulus : rs1=9 rs2=8 rd=8 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 91000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 10] No hazard
+#    Stimulus : rs1=1 rs2=2 rd=15 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 101000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 11] RAND 11 JUMP
+#    Stimulus : rs1=0 rs2=0 rd=1 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 111000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 12] RAND 12 CRN_X0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 121000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 13] RAND 13 JUMP
+#    Stimulus : rs1=1 rs2=1 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 131000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 14] RAND 14 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 141000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 15] RAND 15 CRN_X0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 151000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 16] RAND 16 CRN_JLU
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 161000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 17] RAND 17 LU_RS1
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 171000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 18] RAND 18 LU_RS2
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 181000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 19] RAND 19 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 191000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 20] RAND 20 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 201000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 21] RAND 21 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 211000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 22] RAND 22 NONE
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 221000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 23] RAND 23 LU_RS1
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 231000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 24] RAND 24 NONE
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 241000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 25] RAND 25 JUMP
+#    Stimulus : rs1=1 rs2=1 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 251000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 26] RAND 26 JUMP
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 261000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 27] RAND 27 CRN_X0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 271000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 28] RAND 28 LU_RS1
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 281000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 29] RAND 29 JUMP
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 291000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 30] RAND 30 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 301000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 31] RAND 31 LU_RS1
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 311000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 32] RAND 32 NONE
+#    Stimulus : rs1=1 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 321000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 33] RAND 33 CRN_JLU
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 331000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 34] RAND 34 JUMP
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 341000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 35] RAND 35 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 351000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 36] RAND 36 JUMP
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 361000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 37] RAND 37 CRN_ALU
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 371000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 38] RAND 38 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 381000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 39] RAND 39 CRN_ALU
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 391000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 40] RAND 40 JUMP
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 401000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 41] RAND 41 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 411000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 42] RAND 42 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 421000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 43] RAND 43 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 431000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 44] RAND 44 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 441000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 45] RAND 45 NONE
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 451000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 46] RAND 46 LU_RS2
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 461000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 47] RAND 47 LU_RS2
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 471000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 48] RAND 48 CRN_WE0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=0 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 481000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 49] RAND 49 CRN_X0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 491000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 50] RAND 50 NONE
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 501000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 51] RAND 51 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 511000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 52] RAND 52 NONE
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 521000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 53] RAND 53 LU_RS1
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 531000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 54] RAND 54 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 541000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 55] RAND 55 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 551000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 56] RAND 56 CRN_ALU
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 561000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 57] RAND 57 JUMP
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 571000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 58] RAND 58 NONE
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 581000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 59] RAND 59 JUMP
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 591000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 60] RAND 60 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 601000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 61] RAND 61 CRN_JLU
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 611000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 62] RAND 62 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 621000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 63] RAND 63 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 631000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 64] RAND 64 CRN_WE0
+#    Stimulus : rs1=1 rs2=1 rd=1 we=0 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 641000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 65] RAND 65 CRN_JLU
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 651000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 66] RAND 66 LU_RS1
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 661000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 67] RAND 67 JUMP
+#    Stimulus : rs1=1 rs2=1 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 671000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 68] RAND 68 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 681000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 69] RAND 69 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 691000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 70] RAND 70 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 701000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 71] RAND 71 JUMP
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 711000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 72] RAND 72 JUMP
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 721000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 73] RAND 73 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 731000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 74] RAND 74 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 741000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 75] RAND 75 JUMP
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=000 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 751000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 76] RAND 76 LU_RS1
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 761000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 77] RAND 77 NONE
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 771000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 78] RAND 78 LU_RS2
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 781000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 79] RAND 79 NONE
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 791000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 80] RAND 80 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 801000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 81] RAND 81 NONE
+#    Stimulus : rs1=1 rs2=1 rd=0 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 811000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 82] RAND 82 NONE
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=000 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 821000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 83] RAND 83 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 831000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 84] RAND 84 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 841000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 85] RAND 85 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 851000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 86] RAND 86 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 861000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 87] RAND 87 LU_RS1
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 871000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 88] RAND 88 LU_RS1
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 881000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 89] RAND 89 LU_RS2
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 891000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 90] RAND 90 JUMP
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 901000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 91] RAND 91 LU_RS1
+#    Stimulus : rs1=0 rs2=1 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 911000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 92] RAND 92 LU_RS1
+#    Stimulus : rs1=1 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 921000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 93] RAND 93 CRN_JLU
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 931000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 94] RAND 94 LU_RS2
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 941000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 95] RAND 95 CRN_X0
+#    Stimulus : rs1=0 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 951000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 96] RAND 96 LU_RS1
+#    Stimulus : rs1=1 rs2=0 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 961000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 97] RAND 97 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 971000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 98] RAND 98 LU_RS2
+#    Stimulus : rs1=1 rs2=0 rd=0 we=1 wb_sel=001 jump=0
+#    Expected : stall=0 fif=0 fidex=0
+#    Actual   : stall=0 fif=0 fidex=0  @ 981000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 99] RAND 99 LU_RS2
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=0
+#    Expected : stall=1 fif=0 fidex=1
+#    Actual   : stall=1 fif=0 fidex=1  @ 991000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 100] RAND 100 JUMP
+#    Stimulus : rs1=0 rs2=1 rd=1 we=1 wb_sel=001 jump=1
+#    Expected : stall=0 fif=1 fidex=1
+#    Actual   : stall=0 fif=1 fidex=1  @ 1001000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_objection.svh(1270) @ 1025000: reporter [TEST_DONE] 'run' phase is ready to proceed to the 'extract' phase
+# [COV] hz: 9/9 = 100.00%
+#     [bin] ev_load_use_stall = 34
+#     [bin] ev_jump_flush = 23
+#     [bin] ev_jump_over_lu = 10
+#     [bin] ev_no_hazard = 43
+#     [bin] lu_rs1_match = 20
+#     [bin] lu_rs2_match = 26
+#     [bin] lu_x0_filter = 32
+#     [bin] lu_we0_filter = 2
+#     [bin] lu_wb_alu_filter = 9
+# UVM_INFO /home/key/workspace/project2_axi/verify4thesis/logs/common/tb_thesis_checker.sv(99) @ 1025000: uvm_test_top.env.scb [SB] Scoreboard: matched=100 mismatched=0
+# ================================================================
+#  SUMMARY: 100/100 PASS, 0 FAIL | Sim time: 1025000
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_report_server.svh(847) @ 1025000: reporter [UVM/REPORT/SERVER] 
+# --- UVM Report Summary ---
+# 
+# ** Report counts by severity
+# UVM_INFO :    6
+# UVM_WARNING :    0
+# UVM_ERROR :    0
+# UVM_FATAL :    0
+# ** Report counts by id
+# [NO_DPI_TSTNAME]     1
+# [RNTST]     1
+# [SB]     1
+# [TEST_DONE]     1
+# [UVM/COMP/NAMECHECK]     1
+# [UVM/RELNOTES]     1
+# 
+# ** Note: $finish    : /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(517)
+#    Time: 1025 ns  Iteration: 68  Instance: /tb_top
+# End time: 09:03:13 on May 09,2026, Elapsed time: 0:00:06
+# Errors: 0, Warnings: 4
+

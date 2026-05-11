@@ -1,0 +1,642 @@
+# ================================================================
+#  TB: tb_fwd_thesis | Section: 5.3.1 | Figure: 5.5
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(453) @ 0: reporter [NO_DPI_TSTNAME] UVM_NO_DPI defined--getting UVM_TESTNAME directly, without DPI
+# UVM_INFO @ 0: reporter [RNTST] Running test fwd_test...
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_traversal.svh(279) @ 0: reporter [UVM/COMP/NAMECHECK] This implementation of the component name checks requires DPI to be enabled
+# [TEST  1] RS1 EX hazard
+#    Stimulus : rs1=3 rs2=11 rd_mem=3 we_mem=1 rd_wb=8 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 11000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  2] RS1 MEM hazard
+#    Stimulus : rs1=4 rs2=12 rd_mem=9 we_mem=1 rd_wb=4 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 21000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  3] RS2 EX hazard
+#    Stimulus : rs1=12 rs2=6 rd_mem=6 we_mem=1 rd_wb=9 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 31000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  4] RS2 MEM hazard
+#    Stimulus : rs1=12 rs2=7 rd_mem=8 we_mem=1 rd_wb=7 we_wb=1
+#    Expected : fwd_a=00 fwd_b=10
+#    Actual   : fwd_a=00 fwd_b=10  @ 41000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  5] DOUBLE hazard priority
+#    Stimulus : rs1=5 rs2=5 rd_mem=5 we_mem=1 rd_wb=5 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 51000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  6] x0 filtered
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 61000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  7] No hazard
+#    Stimulus : rs1=1 rs2=2 rd_mem=21 we_mem=1 rd_wb=22 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 71000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  8] RS1 EX we_mem=0 (no fwd)
+#    Stimulus : rs1=3 rs2=9 rd_mem=3 we_mem=0 rd_wb=8 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 81000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  9] RS1 WB we_wb=0 (no fwd)
+#    Stimulus : rs1=4 rs2=9 rd_mem=8 we_mem=1 rd_wb=4 we_wb=0
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 91000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 10] RAND 10 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 101000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 11] RAND 11 RS1_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 111000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 12] RAND 12 DOUBLE
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 121000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 13] RAND 13 RS1_EX
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 131000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 14] RAND 14 DOUBLE
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 141000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 15] RAND 15 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 151000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 16] RAND 16 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 161000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 17] RAND 17 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 171000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 18] RAND 18 RS1_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 181000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 19] RAND 19 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 191000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 20] RAND 20 RS1_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=10
+#    Actual   : fwd_a=10 fwd_b=10  @ 201000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 21] RAND 21 DOUBLE
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 211000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 22] RAND 22 RS2_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 221000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 23] RAND 23 RS2_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 231000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 24] RAND 24 RS1_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 241000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 25] RAND 25 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 251000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 26] RAND 26 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 261000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 27] RAND 27 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 271000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 28] RAND 28 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 281000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 29] RAND 29 RS1_EX
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 291000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 30] RAND 30 RS2_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 301000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 31] RAND 31 RS2_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 311000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 32] RAND 32 RS2_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 321000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 33] RAND 33 RS2_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 331000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 34] RAND 34 RS2_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 341000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 35] RAND 35 NONE
+#    Stimulus : rs1=0 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 351000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 36] RAND 36 RS2_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 361000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 37] RAND 37 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 371000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 38] RAND 38 RS2_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 381000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 39] RAND 39 RS1_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 391000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 40] RAND 40 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 401000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 41] RAND 41 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 411000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 42] RAND 42 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 421000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 43] RAND 43 RS1_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=10
+#    Actual   : fwd_a=00 fwd_b=10  @ 431000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 44] RAND 44 NONE
+#    Stimulus : rs1=1 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=10
+#    Actual   : fwd_a=10 fwd_b=10  @ 441000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 45] RAND 45 RS1_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 451000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 46] RAND 46 RS2_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=10
+#    Actual   : fwd_a=00 fwd_b=10  @ 461000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 47] RAND 47 DOUBLE
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 471000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 48] RAND 48 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 481000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 49] RAND 49 RS2_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 491000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 50] RAND 50 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 501000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 51] RAND 51 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 511000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 52] RAND 52 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 521000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 53] RAND 53 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 531000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 54] RAND 54 RS2_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 541000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 55] RAND 55 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 551000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 56] RAND 56 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 561000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 57] RAND 57 RS2_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 571000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 58] RAND 58 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 581000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 59] RAND 59 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 591000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 60] RAND 60 NONE
+#    Stimulus : rs1=0 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 601000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 61] RAND 61 NONE
+#    Stimulus : rs1=1 rs2=1 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 611000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 62] RAND 62 RS2_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 621000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 63] RAND 63 RS2_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 631000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 64] RAND 64 RS2_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 641000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 65] RAND 65 RS1_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 651000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 66] RAND 66 RS1_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 661000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 67] RAND 67 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 671000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 68] RAND 68 RS2_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 681000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 69] RAND 69 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 691000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 70] RAND 70 RS1_MEM
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 701000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 71] RAND 71 RS2_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 711000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 72] RAND 72 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 721000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 73] RAND 73 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 731000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 74] RAND 74 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 741000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 75] RAND 75 RS2_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=00
+#    Actual   : fwd_a=01 fwd_b=00  @ 751000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 76] RAND 76 RS1_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 761000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 77] RAND 77 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 771000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 78] RAND 78 RS2_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 781000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 79] RAND 79 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 791000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 80] RAND 80 RS2_MEM
+#    Stimulus : rs1=0 rs2=0 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 801000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 81] RAND 81 RS1_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 811000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 82] RAND 82 RS1_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=10
+#    Actual   : fwd_a=00 fwd_b=10  @ 821000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 83] RAND 83 RS1_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 831000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 84] RAND 84 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 841000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 85] RAND 85 RS1_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 851000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 86] RAND 86 RS2_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 861000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 87] RAND 87 DOUBLE
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 871000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 88] RAND 88 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 881000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 89] RAND 89 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 891000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 90] RAND 90 DOUBLE
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 901000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 91] RAND 91 X0
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 911000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 92] RAND 92 RS2_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=10
+#    Actual   : fwd_a=10 fwd_b=10  @ 921000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 93] RAND 93 RS2_EX
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 931000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 94] RAND 94 RS2_EX
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 941000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 95] RAND 95 RS1_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=00 fwd_b=10
+#    Actual   : fwd_a=00 fwd_b=10  @ 951000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 96] RAND 96 RS2_MEM
+#    Stimulus : rs1=1 rs2=1 rd_mem=1 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=01 fwd_b=01
+#    Actual   : fwd_a=01 fwd_b=01  @ 961000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 97] RAND 97 RS1_MEM
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=1 we_wb=1
+#    Expected : fwd_a=10 fwd_b=00
+#    Actual   : fwd_a=10 fwd_b=00  @ 971000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 98] RAND 98 RS2_EX
+#    Stimulus : rs1=0 rs2=1 rd_mem=1 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=01
+#    Actual   : fwd_a=00 fwd_b=01  @ 981000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 99] RAND 99 RS1_EX
+#    Stimulus : rs1=0 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 991000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 100] RAND 100 RS2_EX
+#    Stimulus : rs1=1 rs2=0 rd_mem=0 we_mem=1 rd_wb=0 we_wb=1
+#    Expected : fwd_a=00 fwd_b=00
+#    Actual   : fwd_a=00 fwd_b=00  @ 1001000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_objection.svh(1270) @ 1025000: reporter [TEST_DONE] 'run' phase is ready to proceed to the 'extract' phase
+# [COV] fwd: 9/9 = 100.00%
+#     [bin] rs1_sel_00 = 61
+#     [bin] rs1_sel_01 = 30
+#     [bin] rs1_sel_10 = 9
+#     [bin] rs2_sel_00 = 57
+#     [bin] rs2_sel_01 = 35
+#     [bin] rs2_sel_10 = 8
+#     [bin] in_double = 15
+#     [bin] in_x0 = 23
+#     [bin] in_none = 19
+# UVM_INFO /home/key/workspace/project2_axi/verify4thesis/logs/common/tb_thesis_checker.sv(99) @ 1025000: uvm_test_top.env.scb [SB] Scoreboard: matched=100 mismatched=0
+# ================================================================
+#  SUMMARY: 100/100 PASS, 0 FAIL | Sim time: 1025000
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_report_server.svh(847) @ 1025000: reporter [UVM/REPORT/SERVER] 
+# --- UVM Report Summary ---
+# 
+# ** Report counts by severity
+# UVM_INFO :    6
+# UVM_WARNING :    0
+# UVM_ERROR :    0
+# UVM_FATAL :    0
+# ** Report counts by id
+# [NO_DPI_TSTNAME]     1
+# [RNTST]     1
+# [SB]     1
+# [TEST_DONE]     1
+# [UVM/COMP/NAMECHECK]     1
+# [UVM/RELNOTES]     1
+# 
+# ** Note: $finish    : /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(517)
+#    Time: 1025 ns  Iteration: 68  Instance: /tb_top
+# End time: 09:04:51 on May 09,2026, Elapsed time: 0:00:05
+# Errors: 0, Warnings: 5
+

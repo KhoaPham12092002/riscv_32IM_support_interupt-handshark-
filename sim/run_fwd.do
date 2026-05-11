@@ -1,62 +1,42 @@
 # =============================================================================
-# UNIVERSAL RISC-V RUN SCRIPT FOR LSU (LOAD STORE UNIT)
-# =============================================================================
-# NOTES FOR AI:
-# 1. Do NOT change directory variables (matched to user's environment).
-# 2. FILL the "COMPILE USER CODE" section with new modules when implementing.
-# 3. Always keep +define+UVM_NO_DPI and -voptargs="+acc".
+# RISC-V FORWARDING UNIT RUN SCRIPT (GUI + Waveform)
 # =============================================================================
 
-# 1. SETUP PATHS (FIXED)
-set SRC_DIR   "../src"
-set VERIF_DIR "../verify/UVM/core"
-set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
+# 1. Setup Library
+if {[file exists work]} { vdel -lib work -all }
+vlib work
+vmap work work
 
-# 2. TEST CONFIG 
-set TB_TOP    "tb_top"
-set TEST_NAME "fwd_test"
-
-puts "\[SCRIPT\] Setup: UVM at $UVM_HOME"
-
-# 3. CLEANUP
-puts "\[SCRIPT\] Cleaning workspace..."
-if {[file exists work]}       { file delete -force work }
-if {[file exists uvm]}        { file delete -force uvm }
-if {[file exists vsim.wlf]}   { file delete -force vsim.wlf }
-
-vlib work; vmap work work
-vlib uvm;  vmap uvm uvm
+# 2. Compile
 vlog -vopt -sv ../package/riscv_32im_pkg.sv
 vlog -vopt -sv ../package/riscv_instr.sv
+vlog -vopt -sv ../src/core/forwarding_unit.sv
+vlog -vopt -sv ../verify/UVM/core/tb_fwd.sv
 
-# 4. COMPILE UVM LIBRARY
-puts "\[SCRIPT\] Compiling UVM..."
-vlog -work uvm +incdir+$UVM_HOME/src +define+UVM_NO_DPI +acc \
-     $UVM_HOME/src/uvm_pkg.sv -timescale "1ns/1ps" -suppress 2181
+# 3. Load Simulation
+vsim -voptargs="+acc" +UVM_TESTNAME=fwd_test +UVM_VERBOSITY=UVM_LOW work.tb_top
 
-# 5. COMPILE USER CODE (LSU & TESTBENCH)
-puts "\[SCRIPT\] Compiling Design & Verify..."
-vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
-     +incdir+$UVM_HOME/src \
-     +incdir+$SRC_DIR/core \
-     +incdir+$SRC_DIR/includes \
-     \
-     $SRC_DIR/core/forwarding_unit.sv \
-     \
-     $VERIF_DIR/tb_fwd.sv
-
-# 6. SIMULATE
-puts "\[SCRIPT\] Simulating..."
-vsim -voptargs="+acc" -L uvm -L work \
-     +UVM_TESTNAME=$TEST_NAME \
-     +UVM_VERBOSITY=UVM_LOW \
-     work.$TB_TOP
-
-# 7. WAVEFORM & RUN
+# 4. Waveform Setup
 radix -hex
-# Add DUT signals for debugging
-# add wave -noupdate -group "LSU Interface" -radix hex sim:/$TB_TOP/dut/*
 
-# Run simulation
+add wave -divider "=== INPUTS: EX Stage ==="
+add wave -noupdate -label rs1_addr_ex            /tb_top/vif/rs1_addr_ex
+add wave -noupdate -label rs2_addr_ex            /tb_top/vif/rs2_addr_ex
+
+add wave -divider "=== INPUTS: MEM Stage ==="
+add wave -noupdate -label rd_addr_mem            /tb_top/vif/rd_addr_mem
+add wave -noupdate -label rf_we_mem  -color cyan /tb_top/vif/rf_we_mem
+
+add wave -divider "=== INPUTS: WB Stage ==="
+add wave -noupdate -label rd_addr_wb             /tb_top/vif/rd_addr_wb
+add wave -noupdate -label rf_we_wb   -color cyan /tb_top/vif/rf_we_wb
+
+add wave -divider "=== OUTPUTS (01=FwdMEM  10=FwdWB  00=NoFwd) ==="
+add wave -noupdate -label forward_a -color yellow /tb_top/vif/forward_a_o
+add wave -noupdate -label forward_b -color yellow /tb_top/vif/forward_b_o
+
+# 5. Run
 run -all
-quit
+
+# 6. Zoom fit
+wave zoom full

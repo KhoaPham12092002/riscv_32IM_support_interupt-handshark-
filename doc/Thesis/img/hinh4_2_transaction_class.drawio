@@ -1,0 +1,40 @@
+<mxfile host="user" modified="2026-05-03T00:00:00.000Z" agent="Gemini CLI" version="1.0" etag="unique-etag-for-this-file">
+  <diagram id="diagram-1" name="Page-1">
+    <mxGraphModel dx="1422" dy="794" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="680" pageHeight="480" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="Hình 4.2 — Sơ đồ Transaction (Sequence Item) RISC-V" style="text;fontSize=13;fontStyle=1;strokeColor=none;fillColor=none;align=center;html=1;" vertex="1" parent="1">
+          <mxGeometry x="10" y="4" width="660" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="riscv_seq_item&lt;br&gt;extends uvm_sequence_item" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#4a6d9c;fontColor=#ffffff;fontSize=11;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="35" width="320" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="rand bit [31:0]  instr          // Instruction word&lt;br&gt;rand bit [31:0]  rs1_val        // Giá trị rs1&lt;br&gt;rand bit [31:0]  rs2_val        // Giá trị rs2&lt;br&gt;     bit [31:0]  result_exp     // Kết quả kỳ vọng&lt;br&gt;     bit [4:0]   rd             // Destination reg&lt;br&gt;     bit [6:0]   opcode         // Opcode field&lt;br&gt;     bit [2:0]   funct3         // Funct3 field&lt;br&gt;     bit [6:0]   funct7         // Funct7 field&lt;br&gt;     bit         is_branch      // Branch instruction?&lt;br&gt;     bit         is_load        // Load instruction?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="81" width="320" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="Constraints" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#444444;strokeColor=#333333;fontColor=#ffffff;fontSize=9;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="283" width="320" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="c_valid_opcode: opcode inside {&lt;br&gt;  7b0110011 (R-type), 7b0010011 (I-type),&lt;br&gt;  7b0000011 (Load), 7b0100011 (Store),&lt;br&gt;  7b1100011 (Branch), 7b1101111 (JAL)&lt;br&gt;}&lt;br&gt;c_rd_nonzero: (is_branch==0) → rd != 0&lt;br&gt;c_rs_range: rs1 inside [0:31], rs2 inside [0:31]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="307" width="320" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="Kế thừa từ uvm_sequence_item:&lt;br&gt;• do_copy(), do_compare()&lt;br&gt;• convert2string()&lt;br&gt;• pack()/unpack()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="430" y="60" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="result_exp được tính bởi:&lt;br&gt;Reference Model (Scoreboard)&lt;br&gt;dựa trên instr + rs1_val + rs2_val" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="430" y="160" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="16" value="Constraint rd≠0:&lt;br&gt;Đảm bảo kết quả ghi được&lt;br&gt;quan sát (x0 hardwired=0)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;align=left;verticalAlign=top;spacingLeft=4;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="430" y="260" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="17" style="dashed=1;endArrow=open;strokeColor=#666;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="430" y="100" as="sourcePoint" />
+            <mxPoint x="400" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

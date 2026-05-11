@@ -1,0 +1,2 @@
+var g_data = {"9":["work.forwarding_unit",95.00,1],"1":["work.fwd_thesis_if",80.64,1],"5":["work.fwd_thesis_pkg",23.39,1],"3":["work.tb_thesis_checker_pkg",11.34,1],"4":["work.tb_thesis_pkg",44.01,1],"6":["work.tb_top",72.14,1]};
+processDuLinks(g_data);

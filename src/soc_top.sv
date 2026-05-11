@@ -20,13 +20,18 @@ module soc_top #(
     // 1. KHAI BÁO CÁP KẾT NỐI NỘI BỘ (INTERNAL WIRES)
     // =======================================================================
 
-    // --- Cáp Memory (IF & LSU) ---
+    // --- Cáp Memory (IF) ---
     logic        if_req_valid, if_req_ready, if_rsp_valid, if_rsp_ready;
     logic [31:0] if_req_addr, if_rsp_instr;
     
-    logic        lsu_req_valid, lsu_req_ready, lsu_rsp_valid, lsu_rsp_ready, lsu_we, lsu_err;
-    logic [31:0] lsu_addr, lsu_wdata, lsu_rdata;
-    logic [2:0]  lsu_funct3;
+    // --- Cáp DMEM (nối thẳng datapath → dmem, không qua LSU wrapper) ---
+    logic        dmem_req_valid, dmem_req_ready;
+    logic [31:0] dmem_addr,  dmem_wdata, dmem_rdata;
+    logic [3:0]  dmem_be;
+    logic        dmem_we;
+    logic        dmem_rsp_valid, dmem_rsp_ready;
+    // lsu_err từ datapath → control
+    logic        lsu_err;
 
     // --- Cáp Báo Cáo Datapath -> Control ---
     logic [4:0]  hz_id_rs1_addr, hz_id_rs2_addr;
@@ -61,15 +66,17 @@ module soc_top #(
         .clk_i                 (clk_i),
         .rst_i                 (rst_i),
         
-        // Memory
-        .if_req_valid_o        (if_req_valid),      .if_req_addr_o         (if_req_addr),
-        .if_req_ready_i        (if_req_ready),      .if_rsp_valid_i        (if_rsp_valid),
-        .if_rsp_instr_i        (if_rsp_instr),      .if_rsp_ready_o        (if_rsp_ready),
-        .lsu_addr_o            (lsu_addr),          .lsu_wdata_o           (lsu_wdata),
-        .lsu_we_o              (lsu_we),            .lsu_funct3_o          (lsu_funct3),
-        .lsu_req_valid_o       (lsu_req_valid),     .lsu_req_ready_i       (lsu_req_ready),
-        .lsu_rsp_valid_i       (lsu_rsp_valid),     .lsu_rdata_i           (lsu_rdata),
-        .lsu_rsp_ready_o       (lsu_rsp_ready),     .lsu_err_i             (lsu_err),
+        // IMEM
+        .if_req_valid_o        (if_req_valid),       .if_req_addr_o         (if_req_addr),
+        .if_req_ready_i        (if_req_ready),       .if_rsp_valid_i        (if_rsp_valid),
+        .if_rsp_instr_i        (if_rsp_instr),       .if_rsp_ready_o        (if_rsp_ready),
+
+        // DMEM (datapath có LSU bên trong, expose raw DMEM bus)
+        .dmem_req_valid_o      (dmem_req_valid),     .dmem_req_ready_i      (dmem_req_ready),
+        .dmem_addr_o           (dmem_addr),          .dmem_wdata_o          (dmem_wdata),
+        .dmem_be_o             (dmem_be),            .dmem_we_o             (dmem_we),
+        .dmem_rsp_valid_i      (dmem_rsp_valid),     .dmem_rsp_ready_o      (dmem_rsp_ready),
+        .dmem_rdata_i          (dmem_rdata),         .dmem_err_i            (1'b0),
 
         // Lên Control
         .hz_id_rs1_addr_o      (hz_id_rs1_addr),    .hz_id_rs2_addr_o      (hz_id_rs2_addr),
@@ -80,6 +87,7 @@ module soc_top #(
         .hz_ex_wb_sel_o        (hz_ex_wb_sel),      .branch_taken_o        (branch_taken),
         .hz_mem_rd_addr_o      (hz_mem_rd_addr),    .hz_mem_reg_we_o       (hz_mem_reg_we),
         .hz_wb_rd_addr_o       (hz_wb_rd_addr),     .hz_wb_reg_we_o        (hz_wb_reg_we),
+        .lsu_err_o             (lsu_err),
 
         // Từ Control
         .ctrl_force_stall_id_i (ctrl_force_stall_id), 
@@ -144,26 +152,37 @@ module soc_top #(
     );
 
     // =======================================================================
-    // 5. INSTANTIATE KHỐI MEMORY (BỘ NHỚ)
+    // 5. INSTANTIATE MEMORY: IMEM & DMEM riêng lẻ
+    //    (Không dùng mem.sv wrapper vì nó có LSU bên trong — sẽ duplicate với LSU trong datapath)
     // =======================================================================
-    mem #(
-        .IMEM_HEX(IMEM_HEX),
-        .IMEM_SZ(IMEM_SZ),
-        .DMEM_SZ(DMEM_SZ)
-    ) u_mem (
-        .clk_i                 (clk_i),             .rst_i                 (rst_i),
-        
-        // IF
-        .if_req_valid_i        (if_req_valid),      .if_req_addr_i         (if_req_addr),
-        .if_req_ready_o        (if_req_ready),      .if_rsp_valid_o        (if_rsp_valid),
-        .if_rsp_ready_i        (if_rsp_ready),      .if_rsp_instr_o        (if_rsp_instr),
-        
-        // LSU
-        .lsu_addr_i            (lsu_addr),          .lsu_wdata_i           (lsu_wdata),
-        .lsu_we_i              (lsu_we),            .lsu_funct3_i          (lsu_funct3),
-        .lsu_req_valid_i       (lsu_req_valid),     .lsu_req_ready_o       (lsu_req_ready),
-        .lsu_rsp_valid_o       (lsu_rsp_valid),     .lsu_rsp_ready_i       (lsu_rsp_ready),
-        .lsu_rdata_o           (lsu_rdata),         .lsu_err_o             (lsu_err)
+    imem #(
+        .HEX_FILE (IMEM_HEX),
+        .MEM_SIZE (IMEM_SZ)
+    ) u_imem (
+        .clk_i       (clk_i),
+        .rst_i       (rst_i),
+        .req_valid_i (if_req_valid),
+        .req_addr_i  (if_req_addr),
+        .req_ready_o (if_req_ready),
+        .rsp_valid_o (if_rsp_valid),
+        .rsp_ready_i (if_rsp_ready),
+        .rsp_instr_o (if_rsp_instr)
+    );
+
+    dmem #(
+        .MEM_SIZE (DMEM_SZ)
+    ) u_dmem (
+        .clk_i       (clk_i),
+        .rst_i       (rst_i),
+        .req_valid_i (dmem_req_valid),
+        .req_ready_o (dmem_req_ready),
+        .req_addr_i  (dmem_addr),
+        .req_wdata_i (dmem_wdata),
+        .req_be_i    (dmem_be),
+        .req_we_i    (dmem_we),
+        .rsp_valid_o (dmem_rsp_valid),
+        .rsp_ready_i (dmem_rsp_ready),
+        .rsp_rdata_o (dmem_rdata)
     );
 
 endmodule

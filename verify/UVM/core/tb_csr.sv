@@ -43,7 +43,7 @@ endinterface
 // =============================================================================
 class csr_item extends uvm_sequence_item;
     // Phân loại action
-    typedef enum {ACT_CSR_RW, ACT_TRAP, ACT_MRET, ACT_IDLE} action_e;
+    typedef enum {ACT_CSR_RW, ACT_TRAP, ACT_MRET, ACT_IRQ, ACT_IDLE} action_e;
     
     rand action_e     action;
     
@@ -52,9 +52,12 @@ class csr_item extends uvm_sequence_item;
     rand logic [31:0] wdata;
     rand csr_op_e  csr_op;
     
-    // Payload cho Trap
+    // Payload cho Trap & IRQ
     rand logic [3:0]  trap_cause;
     rand logic [31:0] trap_pc;
+    rand logic        irq_sw;
+    rand logic        irq_timer;
+    rand logic        irq_ext;
 
     `uvm_object_utils_begin(csr_item)
         `uvm_field_enum(action_e, action, UVM_ALL_ON)
@@ -127,6 +130,14 @@ class csr_driver extends uvm_driver #(csr_item);
                     vif.mret <= 1;
                     @(posedge vif.clk_i);
                     vif.mret <= 0;
+                end
+                
+                csr_item::ACT_IRQ: begin
+                    vif.irq_sw    <= req.irq_sw;
+                    vif.irq_timer <= req.irq_timer;
+                    vif.irq_ext   <= req.irq_ext;
+                    @(posedge vif.clk_i);
+                    vif.irq_sw <= 0; vif.irq_timer <= 0; vif.irq_ext <= 0;
                 end
                 
                 csr_item::ACT_IDLE: begin
@@ -257,7 +268,6 @@ class csr_scoreboard extends uvm_scoreboard;
         $display(" [INTERRUPTS ] SW:%b | Timer:%b | Ext:%b", vif.irq_sw, vif.irq_timer, vif.irq_ext);
         $display("--------------------------------------------------------\n");
     endfunction
- logic [31:0] expected_rdata;
 task run_phase(uvm_phase phase);
         // [TUYỆT CHIÊU] Đưa khai báo lên trên cùng của task để triệt tiêu lỗi Syntax 100%
         logic [31:0] expected_rdata; 

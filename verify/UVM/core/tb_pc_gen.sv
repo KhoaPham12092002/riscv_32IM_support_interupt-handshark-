@@ -132,12 +132,11 @@ class pc_driver extends uvm_driver #(pc_item);
             seq_item_port.get_next_item(req);
             
             // Drive Inputs Synchronously
-            @(posedge vif.clk);
             vif.ready_i            <= req.ready;
             vif.branch_taken_i     <= req.branch_taken;
             vif.branch_target_addr_i <= req.branch_target;
 
-            // Wait 1 cycle for PC update (Sequential Logic)
+            // Wait 1 cycle for PC update
             @(posedge vif.clk); 
             
             seq_item_port.item_done();
@@ -348,17 +347,21 @@ class pc_scoreboard extends uvm_scoreboard;
         // =======================================================
         // 2. CALCULATE NEXT PC & DETERMINE CASE (For next cycle)
         // =======================================================
-        // Ưu tiên 1: STALL (Ready = 0)
-        if (pkt.ready == 0) begin
-            next_expected = expected_pc; // Đứng im, không nhảy!
-            
-            if (pkt.branch_taken) begin
+        // Ưu tiên 1: Branch overrides Stall
+        if (pkt.branch_taken) begin
+            next_expected = pkt.branch_target;
+            if (pkt.ready == 0) begin
                 cnt_override++; 
-                current_eval = CASE_OVERRIDE; // Ghi nhận Case 4: Có Branch nhưng bị chặn
+                current_eval = CASE_OVERRIDE; // Có Branch nhưng Ready=0
             end else begin
-                cnt_stall++;    
-                current_eval = CASE_STALL;    // Ghi nhận Case 2: Stall bình thường
+                cnt_branch++;
+                current_eval = CASE_BRANCH;
             end
+        end
+        else if (pkt.ready == 0) begin
+            next_expected = expected_pc; // Đứng im, không nhảy!
+            cnt_stall++;    
+            current_eval = CASE_STALL;    // Ghi nhận Case 2: Stall bình thường
         end 
         
         // Ưu tiên 2: READY (Ready = 1) -> Xử lý Branch hoặc Tuần tự

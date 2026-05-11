@@ -3,10 +3,13 @@ package riscv_32im_pkg;
 // 1. SYSTEM CONSTANTS & CONFIGURATION
     
     localparam int XLEN = 32;
-    localparam int IMEM_SIZE_BYTES = 4096;  // 4KB
-    localparam int DMEM_SIZE_BYTES = 4096;  // 4KB
+    localparam int IMEM_SIZE_BYTES = 4096;  // 4KB (1024 words)
+    localparam int DMEM_SIZE_BYTES = 4096;  // 4KB (1024 words)
     parameter logic [31:0] BOOT_ADDR = 32'h0000_0000; // address boot PC
 
+    // --- Default HEX Files (Central config — tất cả module tham chiếu về đây) ---
+    parameter string IMEM_HEX_FILE = "../src/memory/program_io.hex";  // File mặc định cho IMEM
+    parameter string DMEM_HEX_FILE = "";                 // DMEM không load hex (init = 0)
 
 
     // --- Memory Map Constants ---

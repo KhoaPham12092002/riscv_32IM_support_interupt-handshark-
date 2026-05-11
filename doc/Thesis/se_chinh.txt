@@ -1,0 +1,564 @@
+==============================================================================
+  SE_CHINH.TXT — MÔ TẢ, ASCII SƠ ĐỒ & NHẬN XÉT TỪNG HÌNH
+  Cập nhật: 03/05/2026
+==============================================================================
+
+Quy ước: [OK] dùng được | [MINOR] nên sửa | [MAJOR] phải sửa trước nộp
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.2 — Bảng thanh ghi RV32I (x0–x31)
+  File: hinh2_2_register_table.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Giới thiệu 32 thanh ghi kiến trúc RISC-V cho người đọc chưa
+biết. Là cơ sở khi giải thích constraint rd≠x0 trong testbench.
+
+ASCII SƠ ĐỒ (layout 2 cột gợi ý):
+
+  ┌──────────┬──────────┬──────────────────────────────┐
+  │ Reg      │ ABI Name │ Chức năng                    │
+  ├──────────┼──────────┼──────────────────────────────┤
+  │ x0       │ zero     │ Hằng số 0 (hardwired=0)      │  ← màu xám
+  │ x1       │ ra       │ Return address               │  ← màu xanh dương
+  │ x2       │ sp       │ Stack pointer                │  ┐
+  │ x3       │ gp       │ Global pointer               │  ├ màu cam
+  │ x4       │ tp       │ Thread pointer               │  ┘
+  │ x5–x7    │ t0–t2    │ Temporary (caller-saved)     │  ┐
+  │ x28–x31  │ t3–t6    │ Temporary (caller-saved)     │  ┘ màu vàng
+  │ x8–x9    │ s0/fp,s1 │ Saved reg (callee-saved)     │  ┐
+  │ x18–x27  │ s2–s11   │ Saved reg (callee-saved)     │  ┘ màu xanh lá
+  │ x10–x11  │ a0–a1    │ Đối số / Giá trị trả về      │  ┐
+  │ x12–x17  │ a2–a7    │ Đối số hàm (caller-saved)    │  ┘ màu tím
+  └──────────┴──────────┴──────────────────────────────┘
+
+NHẬN XÉT:
+  [MINOR] Cân nhắc layout 2 cột (x0–x15 trái, x16–x31 phải) để giảm
+          chiều cao trang khi chèn vào Word.
+  [MINOR] Thêm ghi chú "caller-saved / callee-saved" vào cột chức năng.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.3 — Pipeline timing diagram 5 tầng
+  File: hinh2_3_pipeline_timing.drawio  |  Trạng thái: [OK] khỏi sửa 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Minh họa pipeline hoạt động đồng thời — tại C5 cả 5 lệnh đều
+đang chạy ở các tầng khác nhau. Giải thích tại sao throughput tăng ~2.8×.
+
+ASCII SƠ ĐỒ:
+
+        C1    C2    C3    C4    C5    C6    C7    C8    C9
+Lệnh1 [ IF ][ ID ][ EX ][MEM ][ WB ]
+Lệnh2       [ IF ][ ID ][ EX ][MEM ][ WB ]
+Lệnh3             [ IF ][ ID ][ EX ][MEM ][ WB ]
+Lệnh4                   [ IF ][ ID ][ EX ][MEM ][ WB ]
+Lệnh5                         [ IF ][ ID ][ EX ][MEM ][ WB ]
+      ─────────────────────────────────────────────────────
+       Tại C5: 5 lệnh chạy đồng thời ← đây là điểm cần highlight
+
+  Single-cycle: 5 lệnh × 5 cycle = 25 cycles
+  Pipeline    : 5 + (5-1)         =  9 cycles  → tăng 2.8×
+
+  Màu ô: IF=xanh | ID=cam | EX=vàng | MEM=xanh lá | WB=tím
+
+NHẬN XÉT:
+  [MINOR] Nên thêm tên lệnh cụ thể: "ADD x1,x2,x3", "SUB x4,x5,x6"...
+          thay vì chỉ "Lệnh 1", "Lệnh 2".
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.5 — Timing diagram Load-Use Hazard (1 stall cycle)
+  File: hinh2_5_load_use_hazard.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Chứng minh forwarding không đủ cho LW — phải stall 1 cycle vì
+dữ liệu LW chỉ có sau tầng MEM (chứ không phải EX như các lệnh R-type).
+
+ASCII SƠ ĐỒ:
+
+          C1    C2    C3    C4    C5    C6    C7    C8
+lw x2,0(x1)
+        [ IF ][ ID ][ EX ][MEM*][ WB ]
+                              │
+                              └── data x2 sẵn sàng sau MEM
+add x3,x2,x1
+              [ IF ][ ID ][NOP!][ EX ][ MEM][ WB ]
+                            ↑     ↑
+                         stall  fwd MEM→EX
+sub x4,x5,x6
+                    [ IF ][ ID ][ ID*][ EX ][ MEM][ WB ]
+                                  ↑
+                            giữ lại (stall propagation)
+
+  NOP  = màu đỏ nhạt (hồng)
+  MEM* = viền cam đậm (highlight nguồn forward)
+  EX*  = viền cam đậm (highlight đích forward)
+  Mũi tên forwarding: từ MEM[C4] → EX[C5], màu cam/đỏ
+
+NHẬN XÉT:
+  [MINOR] Đồng nhất màu viền MEM cell với các hình khác (xanh lá thuần).
+  [MINOR] Đồng nhất style mũi tên forwarding (dùng block arrow).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.6 — Timing diagram Control Hazard + Pipeline Flush
+  File: hinh2_6_control_hazard.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Giải thích Branch Penalty = 2 cycles. Branch resolved tại EX(C3)
+nhưng 2 lệnh sai đã vào pipeline → bị flush → penalty = 2 cycles.
+
+ASCII SƠ ĐỒ:
+
+              C1    C2    C3    C4    C5    C6    C7    C8
+BEQ x1,x2,L
+            [ IF ][ ID ][ EX ][ MEM][ WB ]
+                          ↑
+                    branch resolved!
+                    PC → L (target)
+I+1: add
+                  [ IF ][FLSH]  ← bị flush tại C3
+I+2: sub
+                        [FLSH]  ← bị flush tại C3
+L: lw x9,0(x1)  ← lệnh tại địa chỉ target L
+                              [ IF ][ ID ][ EX ][ MEM][ WB ]
+                               ↑
+                          fetch lại từ C4
+
+  FLUSH = màu xám nhạt + chữ đỏ
+  EX của BEQ = viền đỏ đậm (highlight điểm resolve)
+  Annotation: "Branch taken! PC→L" ngay trên EX@C3
+  Ghi chú cuối: "Branch Penalty = 2 cycles (Late Resolution tại EX stage)"
+
+NHẬN XÉT:
+  [MINOR] Căn giữa tiêu đề (hiện đang lệch phải).
+  [MINOR] Đồng nhất cell style (bỏ shape=label, dùng rounded=0).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.7 — Flowchart quy trình xử lý ngắt (Trap Handling)
+  File: hinh2_7_trap_handling.drawio  |  Trạng thái: [MAJOR]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Mô tả toàn bộ quy trình phần cứng xử lý ngắt/ngoại lệ theo
+RISC-V M-mode. GVHD sẽ hỏi kỹ: tại sao MIE=0 cùng cycle? MRET làm gì?
+
+ASCII SƠ ĐỒ:
+
+          ┌─────────────────────────┐
+     ┌───►│    Normal Execution     │◄──────────────────┐
+     │    └────────────┬────────────┘                   │
+     │                 │ irq / exception                 │
+     │    ┌────────────▼────────────┐                   │
+     │    │  Ngắt / Ngoại lệ       │                   │
+     │    │     phát sinh?         │──── Không ─────────┘
+     │    └────────────┬────────────┘     (tiếp tục chạy)
+     │                 │ Có
+     │    ┌────────────▼────────────┐
+     │    │   Lưu trạng thái:       │
+     │    │   mepc   ← PC           │
+     │    │   mcause ← cause        │
+     │    │   mtval  ← addr/instr   │
+     │    └────────────┬────────────┘
+     │                 │
+     │    ┌────────────▼────────────┐
+     │    │   Cập nhật mstatus:     │
+     │    │   MPIE ← MIE            │
+     │    │   MIE  ← 0  (tắt ngắt) │  ← quan trọng: cùng cycle!
+     │    └────────────┬────────────┘
+     │                 │
+     │    ┌────────────▼────────────┐
+     │    │   PC ← mtvec            │
+     │    │   (nhảy đến ISR handler)│
+     │    └────────────┬────────────┘
+     │                 │
+     │    ┌ ─ ─ ─ ─ ─ ─▼─ ─ ─ ─ ─ ─┐  (viền đứt = software)
+     │    │   ISR thực thi           │
+     │    │   (xử lý nguyên nhân)    │
+     │    └ ─ ─ ─ ─ ─ ─┬─ ─ ─ ─ ─ ─┘
+     │                 │
+     │    ┌────────────▼────────────┐
+     │    │   MRET                  │
+     │    └────────────┬────────────┘
+     │                 │
+     │    ┌────────────▼────────────┐
+     │    │   Khôi phục:            │
+     │    │   MIE ← MPIE            │
+     │    │   PC  ← mepc            │
+     │    └────────────┬────────────┘
+     │                 │
+     │    ┌────────────▼────────────┐
+     └────│    Resume Execution     │
+          └─────────────────────────┘
+
+  Chú thích bên phải (box nhỏ):
+    "CSR cập nhật đồng thời:
+     mepc, mcause, mtval, mstatus
+     tại cùng 1 chu kỳ trap"
+
+NHẬN XÉT:
+  [MAJOR] Nhánh "Không" trong file hiện tại BỊ TREO (không có target node).
+          → Khi vẽ lại: mũi tên "Không" phải vòng về bên phải và quay lại
+          "Normal Execution" (như ASCII trên).
+  [MAJOR] Tiêu đề chồng lên node đầu. Khi vẽ lại dời toàn bộ flowchart
+          xuống ít nhất y=50 để tiêu đề không đè.
+  [MINOR] Box annotation CSR cần có mũi tên đứt từ bước "Lưu trạng thái"
+          trỏ vào, không để nổi giữa diagram.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 2.8 — Sơ đồ phân cấp kiến trúc UVM
+  File: hinh2_8_uvm_hierarchy.drawio  |  Trạng thái: [MAJOR]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Cho thấy phân cấp kế thừa UVM (ai chứa ai, ai tạo ra ai).
+Khác với hình 4.1 (data flow). Hình này = cấu trúc OOP.
+
+ASCII SƠ ĐỒ:
+
+  ┌──────────────────────────────────────────────────────────┐
+  │                uvm_test (riscv_core_test)                │  ← màu vàng cam
+  └────────────────────────┬─────────────────────────────────┘
+                           │ create
+  ┌────────────────────────▼─────────────────────────────────┐
+  │                   uvm_env (riscv_env)                    │  ← vàng nhạt
+  │                                                          │
+  │  ┌──────────────────────────────────┐  ┌─────────────┐  │
+  │  │       uvm_agent (riscv_agent)    │  │ Scoreboard  │◄─┼── TLM ─┐
+  │  │  ┌──────────┐      ┌──────────┐ │  │(Ref. Model) │  │  (đỏ)  │
+  │  │  │Sequencer │─────►│  Driver  │ │  └─────────────┘  │        │
+  │  │  └──────────┘      └──────────┘ │  ┌─────────────┐  │        │
+  │  │         seq_item_port           │  │  Coverage   │◄─┼── TLM ─┤
+  │  │                  ┌───────────┐  │  │ Collector   │  │  (tím) │
+  │  │                  │  Monitor  │──┼──┼─────────────┼──┼────────┘
+  │  │                  └───────────┘  │  └─────────────┘  │
+  │  └──────────────────────────────────┘                   │
+  └──────────────────────────────────────────────────────────┘
+
+  Mũi tên TLM (đứt):  Monitor ──(analysis_port)──► Scoreboard (đỏ)
+                       Monitor ──(analysis_port)──► Coverage   (tím)
+  Mũi tên solid:      Sequencer ──(seq_item)──► Driver
+
+NHẬN XÉT:
+  [MAJOR] File gốc dùng nested cells → TLM arrows render sai toạ độ.
+          Khi vẽ lại: dùng FLAT structure (tất cả cells là parent="1"),
+          dùng background rectangle để visual grouping thôi.
+  [MINOR] Đổi TLM edge style sang orthogonalEdgeStyle cho nhất quán.
+  [MINOR] Tăng canvas height lên 580+ vì legend đang sát mép dưới.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 3.1 — Sơ đồ khối tổng quát hệ thống
+  File: hinh3_1_tong_quat_he_thong.drawio  |  Trạng thái: [MAJOR]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Big picture toàn hệ thống — ai là DUT, ai là testbench, bộ nhớ
+ở đâu. Là hình đầu chương 3, đặt nền cho mọi hình chi tiết phía sau.
+
+ASCII SƠ ĐỒ:
+
+  ┌──────────────────────────────────────────┐
+  │             UVM Environment              │  ← viền đứt
+  │                                          │
+  │  ┌──────────┐  seq_item  ┌───────────┐   │
+  │  │Sequencer │───────────►│  Driver   │   │
+  │  └──────────┘            │(IMEM/DMEM │   │
+  │                          │ Responder)│   │
+  │                          └─────┬─────┘   │
+  │                                │         │         ┌──────────┐
+  │                          ┌─────▼─────┐   │         │  IMEM    │
+  │                          │  Virtual  │◄──┼────────►│  (4KB)   │
+  │                          │ Interface │   │         └──────────┘
+  │                          └─────┬─────┘   │
+  │                                │ Valid/   │         ┌──────────┐
+  │                                │ Ready    │         │  DMEM    │
+  │                          ┌─────▼─────┐   │◄───────►│  (4KB)   │
+  │                          │    DUT    │   │         └──────────┘
+  │                          │ (CPU Core)│   │
+  │                          └─────┬─────┘   │
+  │                                │ observe  │
+  │  ┌──────────┐   ┌──────────┐   │         │
+  │  │Scoreboard│◄──│  Monitor │◄──┘         │
+  │  └──────────┘   └──────────┘             │
+  │  ┌──────────┐       │ analysis_port       │
+  │  │ Coverage │◄──────┘                    │
+  │  └──────────┘                            │
+  └──────────────────────────────────────────┘
+         * IMEM/DMEM được mô phỏng bởi Driver (không phải real hardware)
+
+NHẬN XÉT:
+  [MAJOR] File gốc có NỘI DUNG BỊ NHÂN ĐÔI: 2 bộ cell chồng nhau
+          (ID set -263→-278 và -279→-294 tại cùng toạ độ).
+          Khi mở draw.io: kéo thử 1 element, sẽ thấy element kia bên dưới.
+          → Xóa 1 trong 2 bộ đi.
+  [MAJOR] Thiếu Coverage Collector — cần thêm vào trong UVM Env.
+  [MAJOR] Edge DUT→Monitor không có source node (chỉ có tọa độ cứng).
+          → Khi vẽ lại: kéo mũi tên từ DUT block đến Monitor block đúng.
+  [MINOR] Thêm Virtual Interface box giữa DUT và Driver/Monitor.
+  [MINOR] Sequencer→Driver edge đi vòng (qua y=210), nên vẽ thẳng.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 3.2 — Sơ đồ khối chi tiết datapath 5 tầng
+  File: hinh3_2_datapath.drawio  |  Trạng thái: [OK — tạo 04/05/2026]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Hình quan trọng nhất — toàn bộ datapath CPU. GVHD hỏi bất kỳ
+module nào cũng phải trả lời được từ hình này.
+
+ASCII SƠ ĐỒ:
+
+  ╔══IF══════╗ ╔IF/ID╗ ╔══ID══════╗ ╔ID/EX╗ ╔═══════════EX══════════╗ ╔EX/MEM╗ ╔═MEM═╗ ╔MEM/WB╗ ╔═WB═╗
+  ║          ║ ║     ║ ║          ║ ║     ║ ║                        ║ ║      ║ ║     ║ ║      ║ ║    ║
+  ║  ┌─────┐ ║ ║     ║ ║ ┌──────┐ ║ ║     ║ ║ ┌────┐                 ║ ║      ║ ║     ║ ║      ║ ║WB  ║
+  ║  │PCGen│ ║ ║─────║ ║ │Decode│ ║ ║─────║ ║ │MUXA│►┌───┐          ║ ║──────║ ║┌───┐║ ║──────║ ║MUX ║
+  ║  │     │◄║─║─────║─║─│r     │ ║ ║─────║─║►│    │ │ALU│          ║ ║──────║ ║│DMM│║ ║──────║ ║    ║
+  ║  └──┬──┘ ║ ║     ║ ║ │Imm   │ ║ ║     ║ ║ └────┘ │   │►─────────╬─║──────╬─║│   │║ ║──────║►║    ║
+  ║     │    ║ ║─────║ ║ │Gen   │►║─║─────║ ║ ┌────┐ └───┘          ║ ║      ║ ║└───┘║ ║      ║ ║    ║
+  ║  ┌──▼──┐ ║ ║     ║ ║ └──────┘ ║ ║     ║ ║ │MUXB│►┌─────┐        ║ ║      ║ ║     ║ ║      ║ ║    ║
+  ║  │IMEM │►║─║─────║ ║ ┌──────┐ ║ ║─────║─║►│    │ │M-Unt│►───────╬─║      ║ ║     ║ ║      ║ ║    ║
+  ║  └─────┘ ║ ║     ║ ║ │RegFil│►║─║─────║ ║ └────┘ └─────┘        ║ ║      ║ ║     ║ ║      ║ ║    ║
+  ╚══════════╝ ║─────║ ║ └──────┘ ║ ║     ║ ║ ┌──────────────┐      ║ ╚══════╝ ╚═════╝ ╚══════╝ ╚════╝
+               ║     ║ ╚══════════╝ ║     ║ ║ │BranchCompar. │──PC  ║
+               ╚═════╝              ╚═════╝ ║ └──────────────┘      ║
+                                            ║                        ║
+                                            ║ ┌──────────────┐       ║
+                                            ║ │ HazardUnit   │──stall/flush──► IF/ID, ID/EX regs
+                                            ║ └──────────────┘       ║
+                                            ║ ┌──────────────┐       ║
+                                            ║ │ForwardingUnit│◄══════╬═══ EX/MEM result (đỏ)
+                                            ║ │  fwdA──►MUXA │◄══════╬═══ MEM/WB result (đỏ)
+                                            ║ │  fwdB──►MUXB │       ║
+                                            ║ └──────────────┘       ║
+                                            ╚════════════════════════╝
+
+  CSR Unit (góc dưới riêng):
+    ┌────────────────────────────────┐
+    │ CSR Unit                       │
+    │ mstatus, mie, mip, mtvec,      │◄── trap_valid (từ HazardUnit)
+    │ mepc, mcause, mtval, mscratch  │──► mtvec/mepc (về PCGen)
+    └────────────────────────────────┘
+
+  Chú thích màu:
+    ══ đỏ   = forwarding data path
+    -- cam đứt = stall / flush signal
+    .. xanh đứt = write-back path (WB MUX → RegFile)
+
+ NHẬN XÉT:
+  [MINOR] WB MUX thiếu input PC+4 (cho JAL/JALR).
+  [MINOR] Chưa có data bypass lines từ EX/MEM và MEM/WB vào MUX_A/B.
+  [MINOR] Thêm Branch Comparator → HazardUnit (branch taken signal).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 3.3 — State machine M-Unit (MUL/DIV FSM)
+  File: hinh3_3_munit_fsm.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Giải thích M-Unit hoạt động multi-cycle. MUL=2 chu kỳ, DIV=35
+chu kỳ. Pipeline stall toàn bộ trong khi M-Unit đang chạy.
+
+ASCII SƠ ĐỒ:
+
+                          is_mul (MUL/MULH/MULHSU/MULHU)
+                 ┌──────────────────────────────────────────────┐
+                 │                  "2 cycles"                   │
+                 │                                               ▼
+  ┌──────┐  op_  ┌─────────┐  is_div  ┌──────────┐  count==32  ┌──────────┐  always  ┌──────┐
+  │      │ valid │         │ ─────────►│          │────────────►│          │─────────►│      │
+  │ IDLE │──────►│ PREPARE │          │ DIV_LOOP │             │ FIX_SIGN │          │ DONE │
+  │      │       │         │          │  (×32)   │◄────────────│          │          │      │
+  └──────┘       └─────────┘          └──────────┘  count<32   └──────────┘          └──┬───┘
+     ▲                                  (self-loop)                                       │
+     └─────────────────────────────────────────────────────────────────────────────────── ┘
+                                                                              result_valid (reset)
+                                                                              "35 cycles total"
+
+  MUL path (đỏ): IDLE → PREPARE → DONE              = 2 cycles
+  DIV path (kuối): IDLE → PREPARE → 32×DIV_LOOP
+                        → FIX_SIGN → DONE            = 35 cycles
+
+  Màu state: IDLE=xám | PREPARE=xanh | DIV_LOOP=vàng | FIX_SIGN=cam | DONE=xanh lá
+
+NHẬN XÉT:
+  [MINOR] Thêm label "2 cycles" TRỰC TIẾP trên mũi tên MUL path.
+  [MINOR] Thêm label "35 cycles" TRỰC TIẾP trên cung DONE→IDLE.
+  [MINOR] Thêm tên variant vào transition label:
+          "is_div (DIV/DIVU/REM/REMU)" và "is_mul (MUL/MULH/...)"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 3.4 — Sơ đồ logic Forwarding Unit
+  File: hinh3_4_forwarding_logic.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Chứng minh forwarding logic đúng — xử lý đúng ưu tiên MEM>WB
+và đúng edge case rd=x0.
+
+ASCII SƠ ĐỒ (PHẦN 1 — Block diagram):
+
+  EX stage                                      ┌──────┐
+  (rs1, rs2) ─────────────────────────────────►│      │    fwdA(sel) ──► MUX_A ──► ALU operand A
+                                                │ FWD  │                  ├── 00: RegFile[rs1]
+  MEM stage  ──(rd_mem, we_mem, result_mem)────►│ UNIT │    fwdB(sel) ──► MUX_B ──► ALU operand B
+  (pipeline reg EX/MEM)                         │      │                  ├── 00: RegFile[rs2]
+                                                └──────┘                  ├── 01: WB result
+  WB stage   ──(rd_wb,  we_wb,  result_wb)─────►                         └── 10: MEM result
+  (pipeline reg MEM/WB)
+
+ASCII SƠ ĐỒ (PHẦN 2 — Bảng ưu tiên):
+
+  ┌──────────────────────────┬──────────────┬──────────────┬───────────┐
+  │        Điều kiện         │  Forward A   │  Forward B   │  Ưu tiên  │
+  ├──────────────────────────┼──────────────┼──────────────┼───────────┤
+  │MEM.rd==EX.rs1            │              │              │           │
+  │  ∧ MEM.we ∧ rd≠x0        │  MEM result  │      —       │   Cao     │
+  ├──────────────────────────┼──────────────┼──────────────┼───────────┤
+  │WB.rd ==EX.rs1            │              │              │           │
+  │  ∧ WB.we  ∧ rd≠x0        │  WB  result  │      —       │  Thấp hơn │
+  ├──────────────────────────┼──────────────┼──────────────┼───────────┤
+  │MEM.rd==EX.rs2            │              │              │           │
+  │  ∧ MEM.we ∧ rd≠x0        │      —       │  MEM result  │   Cao     │
+  ├──────────────────────────┼──────────────┼──────────────┼───────────┤
+  │WB.rd ==EX.rs2            │              │              │           │
+  │  ∧ WB.we  ∧ rd≠x0        │      —       │  WB  result  │  Thấp hơn │
+  ├──────────────────────────┼──────────────┼──────────────┼───────────┤
+  │    Không có hazard        │  RF[rs1]     │  RF[rs2]     │     —     │
+  └──────────────────────────┴──────────────┴──────────────┴───────────┘
+  ⚠ rd=x0 luôn bị loại: không bao giờ forward về x0 (hardwired=0)
+
+NHẬN XÉT:
+  [MINOR] Thêm MUX_A / MUX_B vào block diagram (hiện fwdA/B đi ra ngoài
+          canvas). MUX có 3 input: 00=RegFile, 01=WB, 10=MEM.
+  [MINOR] Thêm đường kẻ ngang phân cách block diagram và bảng ưu tiên.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 4.1 — Sơ đồ kết nối toàn bộ UVM Environment
+  File: hinh4_1_uvm_environment.drawio  |  Trạng thái: [OK — sửa 04/05/2026]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Data flow trong testbench — ai gửi gì cho ai qua port nào.
+Khác hình 2.8 (phân cấp OOP). Hình này = kết nối runtime.
+
+ASCII SƠ ĐỒ:
+
+                    ┌──────────────────────────────────────────────────┐
+                    │                   uvm_env                        │
+                    │  ┌───────────────────────────────────────────┐   │
+  ┌──────────┐      │  │              uvm_agent                    │   │
+  │          │      │  │  ┌──────────┐ seq_item ┌───────────────┐  │   │
+  │   DUT    │◄────►│  │  │Sequencer │─────────►│    Driver     │  │   │
+  │(soc_no   │      │  │  └──────────┘          │(IMEM/DMEM     │  │   │
+  │ _mem)    │ vif  │  │                        │  Responder)   │  │   │
+  │          │◄────►│  │           ┌────────────►│               │  │   │
+  └──────────┘      │  │           │            └───────────────┘  │   │
+                    │  │     ┌─────┴──────┐                        │   │
+                    │  │     │  Monitor   │                        │   │
+                    │  │     └─────┬──────┘                        │   │
+                    │  └───────────┼───────────────────────────────┘   │
+                    │              │ analysis_port (đỏ đứt)            │
+                    │              ├────────────────────────────────►  │
+                    │              │            ┌──────────────────┐   │
+                    │              │            │    Scoreboard    │   │
+                    │              │            │ (Reference Model)│   │
+                    │              │            └──────────────────┘   │
+                    │              │ analysis_port (tím đứt)           │
+                    │              └────────────────────────────────►  │
+                    │                           ┌──────────────────┐   │
+                    │                           │Coverage Collector│   │
+                    │                           │ (uvm_subscriber) │   │
+                    │                           └──────────────────┘   │
+                    └──────────────────────────────────────────────────┘
+
+  vif = Virtual Interface (SystemVerilog interface, đứt/vàng)
+  ── solid    = physical data
+  -- đứt đỏ  = TLM analysis_port → Scoreboard
+  -- đứt tím = TLM analysis_port → Coverage
+
+NHẬN XÉT:
+  [MINOR] Nên tách thành 2 mũi tên riêng: "IMEM bus" và "DMEM bus"
+          từ DUT đến Driver để rõ Driver mô phỏng cả 2 loại bộ nhớ.
+  [MINOR] Thêm ghi chú "SystemVerilog interface" vào Virtual Interface box.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HÌNH 4.2 — Sơ đồ Transaction (Sequence Item) RISC-V
+  File: hinh4_2_transaction_class.drawio  |  Trạng thái: [OK]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MỤC ĐÍCH: Giải thích "gói dữ liệu" mà Sequencer tạo ra — field gì, random
+hay không, constraint gì. GVHD hỏi: tại sao rd≠x0?
+
+ASCII SƠ ĐỒ (class diagram):
+
+  ┌─────────────────────────────────────────────────────┐
+  │      riscv_seq_item extends uvm_sequence_item       │  ← header xanh đậm
+  ├─────────────────────────────────────────────────────┤
+  │  rand  bit [31:0]  instr          // Instruction    │  ┐
+  │  rand  bit [31:0]  rs1_val        // Giá trị rs1    │  │
+  │  rand  bit [31:0]  rs2_val        // Giá trị rs2    │  │ màu xanh nhạt
+  │        bit [31:0]  result_exp     // Kết quả KV     │  │ (fields)
+  │        bit [4:0]   rd             // Dest. reg      │  │
+  │        bit [6:0]   opcode         // bits[6:0]      │  │
+  │        bit [2:0]   funct3         // bits[14:12]    │  │
+  │        bit [6:0]   funct7         // bits[31:25]    │  │
+  │        bit         is_branch                        │  │
+  │        bit         is_load                          │  ┘
+  ├─────────────────────────────────────────────────────┤
+  │  CONSTRAINTS                                        │  ← header đen
+  │  c_valid_opcode: opcode inside {                    │  ┐
+  │    7'h33(R), 7'h13(I), 7'h03(Load),                │  │ màu vàng nhạt
+  │    7'h23(Store), 7'h63(Branch), 7'h6F(JAL) }       │  │ (constraints)
+  │  c_rd_nonzero: (is_branch==0) → rd != 5'b0         │  │
+  │  c_rs_range: rs1 inside [0:31], rs2 inside [0:31]  │  ┘
+  └─────────────────────────────────────────────────────┘
+
+  Annotation boxes bên phải:
+  ┌─────────────────────────────┐
+  │ Kế thừa từ uvm_sequence_item│
+  │ • do_copy(), do_compare()   │  ← xanh lá
+  │ • convert2string()          │
+  │ • pack() / unpack()         │
+  └─────────────────────────────┘
+  ┌─────────────────────────────┐
+  │ result_exp KHÔNG rand —     │  ← cam nhạt
+  │ tính bởi Scoreboard dựa    │
+  │ trên instr+rs1_val+rs2_val  │
+  └─────────────────────────────┘
+  ┌─────────────────────────────┐
+  │ Constraint rd≠0:            │  ← đỏ nhạt
+  │ x0 hardwired=0,             │
+  │ ghi vào x0 không quan sát  │
+  │ được → loại khỏi test       │
+  └─────────────────────────────┘
+
+NHẬN XÉT:
+  [MINOR] Sửa notation opcode: "7b0110011" → "7'h33" (chuẩn SV, ngắn hơn).
+  [MINOR] Mũi tên kế thừa từ uvm_sequence_item cần source/target đúng
+          (hiện chỉ có tọa độ cứng). Vẽ hollow triangle arrow từ header.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TÓM TẮT ƯU TIÊN XỬ LÝ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [MAJOR] hinh3_1 — Nội dung nhân đôi + thiếu Coverage + edge DUT→Monitor
+                     không có source node.
+  [MAJOR] hinh2_7 — Nhánh "Không" bị treo + tiêu đề chồng node đầu.
+  [MAJOR] hinh2_8 — Nested structure → TLM arrows render sai.
+
+  [MINOR] hinh2_2 — Cân nhắc layout 2 cột.
+  [MINOR] hinh2_3 — Thêm tên lệnh cụ thể.
+  [MINOR] hinh2_5 — Đồng nhất màu viền MEM + style mũi tên fwd.
+  [MINOR] hinh2_6 — Căn giữa tiêu đề, đồng nhất cell style.
+  [MINOR] hinh3_2 — Thêm PC+4→WB MUX, data bypass lines vào MUX.
+  [MINOR] hinh3_3 — Ghi "2/35 cycles" trực tiếp trên mũi tên.
+  [MINOR] hinh3_4 — Thêm MUX_A/B để hoàn chỉnh forwarding path.
+  [MINOR] hinh4_1 — Tách IMEM/DMEM bus thành 2 mũi tên riêng.
+  [MINOR] hinh4_2 — Sửa notation opcode sang 7'h33 v.v.
+
+  [OK]    hinh3_2, hinh3_3, hinh3_4, hinh4_1, hinh4_2 — Dùng được ngay.
+
+==============================================================================

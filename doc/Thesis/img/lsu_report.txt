@@ -1,0 +1,117 @@
+ ================================================================
+#  TB: tb_lsu_thesis | Section: 5.2.4 | Figure: 5.4
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(453) @ 0: reporter [NO_DPI_TSTNAME] UVM_NO_DPI defined--getting UVM_TESTNAME directly, without DPI
+# UVM_INFO @ 0: reporter [RNTST] Running test lsu_test...
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_traversal.svh(279) @ 0: reporter [UVM/COMP/NAMECHECK] This implementation of the component name checks requires DPI to be enabled
+# [TEST  1] LB sign-ext, addr=0x2002 mem=0x00FF0000
+#    Stimulus : addr=0x00002002 wdata=0x00000000 we=0 funct3=000 mem=0x00ff0000
+#    Expected : lsu_rdata=0xffffffff lsu_err=0
+#    Actual   : lsu_rdata=0xffffffff lsu_err=0  @ 76000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  2] LBU zero-ext, addr=0x2003 mem=0xFF000000
+#    Stimulus : addr=0x00002003 wdata=0x00000000 we=0 funct3=100 mem=0xff000000
+#    Expected : lsu_rdata=0x000000ff lsu_err=0
+#    Actual   : lsu_rdata=0x000000ff lsu_err=0  @ 146000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  3] LH sign-ext, addr=0x2004 mem=0x0000FFFF
+#    Stimulus : addr=0x00002004 wdata=0x00000000 we=0 funct3=001 mem=0x0000ffff
+#    Expected : lsu_rdata=0xffffffff lsu_err=0
+#    Actual   : lsu_rdata=0xffffffff lsu_err=0  @ 236000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  4] LHU zero-ext, addr=0x2006 mem=0xABCD0000
+#    Stimulus : addr=0x00002006 wdata=0x00000000 we=0 funct3=101 mem=0xabcd0000
+#    Expected : lsu_rdata=0x0000abcd lsu_err=0
+#    Actual   : lsu_rdata=0x0000abcd lsu_err=0  @ 296000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  5] LW pass-through, addr=0x2008 mem=0xDEADBEEF
+#    Stimulus : addr=0x00002008 wdata=0x00000000 we=0 funct3=010 mem=0xdeadbeef
+#    Expected : lsu_rdata=0xdeadbeef lsu_err=0
+#    Actual   : lsu_rdata=0xdeadbeef lsu_err=0  @ 376000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  6] SB at addr=0x2001 wdata=0xAA -> be=0010
+#    Stimulus : addr=0x00002001 wdata=0x000000aa we=1 funct3=000 mem=0xxxxxxxxx
+#    Expected : dmem_we=1 be=0010 wdata=0x0000aa00 err=0
+#    Actual   : dmem_we=1 be=0010 wdata=0x0000aa00 err=0  @ 416000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  7] SH at addr=0x2002 wdata=0xBEEF -> be=1100
+#    Stimulus : addr=0x00002002 wdata=0x0000beef we=1 funct3=001 mem=0xxxxxxxxx
+#    Expected : dmem_we=1 be=1100 wdata=0xbeef0000 err=0
+#    Actual   : dmem_we=1 be=1100 wdata=0xbeef0000 err=0  @ 456000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  8] SW at addr=0x200C wdata=0xCAFEBABE -> be=1111
+#    Stimulus : addr=0x0000200c wdata=0xcafebabe we=1 funct3=010 mem=0xxxxxxxxx
+#    Expected : dmem_we=1 be=1111 wdata=0xcafebabe err=0
+#    Actual   : dmem_we=1 be=1111 wdata=0xcafebabe err=0  @ 496000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST  9] MISALIGN LH @ odd 0x2003
+#    Stimulus : addr=0x00002003 wdata=0x00000000 we=0 funct3=001 mem=0xxxxxxxxx
+#    Expected : lsu_err_o=1
+#    Actual   : lsu_err_o=1 lsu_rdata=0x00000000  @ 526000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 10] MISALIGN LW @ 0x2007
+#    Stimulus : addr=0x00002007 wdata=0x00000000 we=0 funct3=010 mem=0xxxxxxxxx
+#    Expected : lsu_err_o=1
+#    Actual   : lsu_err_o=1 lsu_rdata=0x00000000  @ 556000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# [TEST 11] MISALIGN SH @ odd 0x2005
+#    Stimulus : addr=0x00002005 wdata=0x0000beef we=1 funct3=001 mem=0xxxxxxxxx
+#    Expected : lsu_err_o=1
+#    Actual   : lsu_err_o=1 lsu_rdata=0x00000000  @ 586000
+#    Result   : PASS
+# ----------------------------------------------------------------
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_objection.svh(1270) @ 1085000: reporter [TEST_DONE] 'run' phase is ready to proceed to the 'extract' phase
+# [COV] lsu: 20/20 = 100.00%
+#     [bin] f3_LB = 1
+#     [bin] f3_LBU = 1
+#     [bin] f3_LH = 2
+#     [bin] f3_LHU = 1
+#     [bin] f3_LW = 2
+#     [bin] f3_SB = 1
+#     [bin] f3_SH = 2
+#     [bin] f3_SW = 1
+#     [bin] we_load = 7
+#     [bin] we_store = 4
+#     [bin] off_0 = 3
+#     [bin] off_1 = 2
+#     [bin] off_2 = 3
+#     [bin] off_3 = 3
+#     [bin] dly_fast = 4
+#     [bin] dly_med = 4
+#     [bin] dly_slow = 3
+#     [bin] misalign_LH = 1
+#     [bin] misalign_LW = 1
+#     [bin] misalign_SH = 1
+# ================================================================
+#  SUMMARY: 11/11 PASS, 0 FAIL | Sim time: 1085000
+# ================================================================
+# UVM_INFO /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_report_server.svh(847) @ 1085000: reporter [UVM/REPORT/SERVER] 
+# --- UVM Report Summary ---
+# 
+# ** Report counts by severity
+# UVM_INFO :    5
+# UVM_WARNING :    0
+# UVM_ERROR :    0
+# UVM_FATAL :    0
+# ** Report counts by id
+# [NO_DPI_TSTNAME]     1
+# [RNTST]     1
+# [TEST_DONE]     1
+# [UVM/COMP/NAMECHECK]     1
+# [UVM/RELNOTES]     1
+# 
+# ** Note: $finish    : /home/key/tool/modelsim_ase/verilog_src/uvm-1.2/src/base/uvm_root.svh(517)
+#    Time: 1085 ns  Iteration: 68  Instance: /tb_top
+# End time: 09:01:23 on May 09,2026, Elapsed time: 0:00:05
+# Errors: 0, Warnings: 1
+

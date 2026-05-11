@@ -1,67 +1,55 @@
 # =============================================================================
-# UNIVERSAL RISC-V RUN SCRIPT (PERFORMANCE & HAZARD STRESS TEST)
+# RISC-V CSR UNIT RUN SCRIPT (GUI + Waveform)
 # =============================================================================
 
-# 1. SETUP PATHS
-set SRC_DIR   "../src"
-set PKG_DIR   "../package"
-set VERIF_DIR "../verify/UVM/core"  
-set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
+# 1. Setup Library
+if {[file exists work]} { vdel -lib work -all }
+vlib work
+vmap work work
 
-# 2. TEST CONFIG
-set TB_TOP    "tb_csr_top"
-set TB_FILE   "tb_csr.sv" 
-# Tên test trong file tb_csr.sv
-set TEST_NAME "csr_test" 
+# 2. Compile
+vlog -vopt -sv ../package/riscv_32im_pkg.sv
+vlog -vopt -sv ../package/riscv_instr.sv
+vlog -vopt -sv ../src/core/csr.sv
+vlog -vopt -sv ../verify/UVM/core/tb_csr.sv
 
-puts "\[SCRIPT\] Setup: UVM at $UVM_HOME"
+# 3. Load Simulation
+vsim -voptargs="+acc" +UVM_TESTNAME=csr_test +UVM_VERBOSITY=UVM_LOW work.tb_csr_top
 
-# 3. CLEANUP
-puts "\[SCRIPT\] Cleaning workspace..."
-if {[file exists work]}       { file delete -force work }
-if {[file exists uvm]}        { file delete -force uvm }
-if {[file exists vsim.wlf]}   { file delete -force vsim.wlf }
-
-vlib work; vmap work work
-vlib uvm;  vmap uvm uvm
-
-# 4. COMPILE UVM LIBRARY
-puts "\[SCRIPT\] Compiling UVM..."
-vlog -work uvm +incdir+$UVM_HOME/src +define+UVM_NO_DPI +acc \
-     $UVM_HOME/src/uvm_pkg.sv -timescale "1ns/1ps" -suppress 2181
-
-# 5. COMPILE USER CODE
-puts "\[SCRIPT\] Compiling Design & Verify..."
-vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
-     +incdir+$UVM_HOME/src \
-     +incdir+$SRC_DIR/includes \
-     +incdir+$PKG_DIR \
-     +incdir+. \
-     $PKG_DIR/riscv_32im_pkg.sv \
-     $PKG_DIR/riscv_instr.sv \
-     $SRC_DIR/core/csr.sv \
-     $VERIF_DIR/$TB_FILE
-
-
-# 6. SIMULATE
-puts "\[SCRIPT\] Simulating..."
-vsim -voptargs="+acc" -L uvm -L work \
-     +UVM_TESTNAME=$TEST_NAME \
-     +UVM_VERBOSITY=UVM_LOW \
-     work.$TB_TOP
-
-# -----------------------------------------------------------------------------
-# 7. WAVEFORM CONFIGURATION
-# -----------------------------------------------------------------------------
-
-# Xóa wave cũ để tránh trùng lặp
-delete wave *
-# Tắt log rác
-suppress 8684,12110
-
-# Cấu hình hiển thị Hex cho dễ nhìn
+# 4. Waveform Setup
 radix -hex
 
-# Run simulation
+add wave -divider "=== SYSTEM ==="
+add wave -noupdate -label CLK   /tb_csr_top/clk
+add wave -noupdate -label RST   /tb_csr_top/rst_i
+
+add wave -divider "=== CORE ACCESS (CSR R/W) ==="
+add wave -noupdate -label req_valid  -color green  /tb_csr_top/vif/req.valid
+add wave -noupdate -label req_addr                 /tb_csr_top/vif/req.addr
+add wave -noupdate -label req_op                   /tb_csr_top/vif/req.op
+add wave -noupdate -label req_wdata                /tb_csr_top/vif/req.wdata
+add wave -noupdate -label csr_ready  -color orange /tb_csr_top/vif/ready
+add wave -noupdate -label csr_rdata  -color cyan   /tb_csr_top/vif/rdata
+
+add wave -divider "=== TRAP / MRET ==="
+add wave -noupdate -label trap_valid -color red    /tb_csr_top/vif/trap_valid
+add wave -noupdate -label trap_cause               /tb_csr_top/vif/trap_cause
+add wave -noupdate -label trap_pc                  /tb_csr_top/vif/trap_pc
+add wave -noupdate -label mret       -color yellow /tb_csr_top/vif/mret
+
+add wave -divider "=== CSR REGISTER STATE ==="
+add wave -noupdate -label mstatus_mie              /tb_csr_top/dut/mstatus_mie
+add wave -noupdate -label mstatus_mpie             /tb_csr_top/dut/mstatus_mpie
+add wave -noupdate -label mtvec                    /tb_csr_top/dut/mtvec
+add wave -noupdate -label mepc                     /tb_csr_top/dut/mepc
+add wave -noupdate -label mcause                   /tb_csr_top/dut/mcause
+
+add wave -divider "=== PC OUTPUTS ==="
+add wave -noupdate -label epc         -color cyan  /tb_csr_top/vif/epc
+add wave -noupdate -label trap_vector -color cyan  /tb_csr_top/vif/trap_vector
+
+# 5. Run
 run -all
-quit -f
+
+# 6. Zoom fit
+wave zoom full

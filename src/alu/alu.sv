@@ -3,9 +3,7 @@ import riscv_32im_pkg::*;
 module alu (
     input  alu_in_t         alu_in,
     output logic Zero,
-    output logic  [31:0]      alu_o,
-    output logic        vaild_o,
-    output logic        ready_o
+    output logic  [31:0]      alu_o
     );
 // INTERNAL SIGNALS
     // (Adder/Subtractor)

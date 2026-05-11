@@ -1,174 +1,90 @@
 # =============================================================================
-# UNIVERSAL RISC-V RUN SCRIPT (HAZARD STRESS TEST)
+# RISC-V CORE HAZARD STRESS TEST RUN SCRIPT (GUI + Waveform)
+# Covers: Load-Use Stall (5.6) + Control Hazard & Flush (5.7)
 # =============================================================================
 
-# 1. SETUP PATHS
-set SRC_DIR   "../src"
-set PKG_DIR   "../package"
-set VERIF_DIR "../verify" 
-set UVM_HOME  "/home/key/tool/modelsim_ase/verilog_src/uvm-1.2"
+# 1. Setup Library
+if {[file exists work]} { vdel -lib work -all }
+vlib work
+vmap work work
 
-# 2. TEST CONFIG
-set TB_TOP    "tb_top"
-# Tên class test trong file tb_uvm_hazard.sv
-set TEST_NAME "riscv_hazard_test" 
+# 2. Compile — packages first, then sub-modules, then core, then wrapper, then TB
+vlog -vopt -sv ../package/riscv_32im_pkg.sv
+vlog -vopt -sv ../package/riscv_instr.sv
 
-puts "\[SCRIPT\] Setup: UVM at $UVM_HOME"
+vlog -vopt -sv ../src/alu/sub_module.sv
+vlog -vopt -sv ../src/alu/alu.sv
+vlog -vopt -sv ../src/alu/riscv_m_unit.sv
 
-# 3. CLEANUP
-puts "\[SCRIPT\] Cleaning workspace..."
-if {[file exists work]}       { file delete -force work }
-if {[file exists uvm]}        { file delete -force uvm }
-if {[file exists vsim.wlf]}   { file delete -force vsim.wlf }
+vlog -vopt -sv ../src/decoder/branch_cmp.sv
+vlog -vopt -sv ../src/decoder/decoder.sv
 
-vlib work; vmap work work
-vlib uvm;  vmap uvm uvm
+vlog -vopt -sv ../src/core/pc_gen.sv
+vlog -vopt -sv ../src/core/register.sv
+vlog -vopt -sv ../src/core/pipeline_reg.sv
+vlog -vopt -sv ../src/core/lsu.sv
+vlog -vopt -sv ../src/core/forwarding_unit.sv
+vlog -vopt -sv ../src/core/hazard_unit.sv
+vlog -vopt -sv ../src/core/csr.sv
+vlog -vopt -sv ../src/core/riscv_control.sv
+vlog -vopt -sv ../src/core/riscv_datapath.sv
+vlog -vopt -sv ../src/core/riscv_core.sv
 
-# 4. COMPILE UVM LIBRARY
-puts "\[SCRIPT\] Compiling UVM..."
-vlog -work uvm +incdir+$UVM_HOME/src +define+UVM_NO_DPI +acc \
-     $UVM_HOME/src/uvm_pkg.sv -timescale "1ns/1ps" -suppress 2181
+vlog -vopt -sv ../verify/UVM/core/tb_core_hazadetec.sv
 
-# 5. COMPILE USER CODE
-puts "\[SCRIPT\] Compiling Design & Verify..."
-vlog -sv -timescale "1ns/1ps" -L uvm +define+UVM_NO_DPI +acc \
-     +incdir+$UVM_HOME/src \
-     +incdir+$SRC_DIR/includes \
-     +incdir+$PKG_DIR \
-     $PKG_DIR/riscv_32im_pkg.sv \
-     $PKG_DIR/riscv_instr.sv \
-     $SRC_DIR/core/pipeline_reg.sv \
-     $SRC_DIR/alu/sub_module.sv\
-     $SRC_DIR/alu/alu.sv \
-     $SRC_DIR/alu/riscv_m_unit.sv \
-     $SRC_DIR/core/pc_gen.sv \
-     $SRC_DIR/memory/register.sv \
-     $SRC_DIR/decoder/decoder.sv \
-     $SRC_DIR/core/lsu.sv \
-     $SRC_DIR/core/forwarding_unit.sv \
-     $SRC_DIR/core/hazard_detection_unit.sv \
-     $SRC_DIR/core/riscv_core.sv \
-     $VERIF_DIR/UVM/core/tb_core_hazadetec.sv 
+# 3. Load Simulation
+vsim -voptargs="+acc" +UVM_TESTNAME=riscv_hazard_test +UVM_VERBOSITY=UVM_LOW work.tb_top
 
-# Lưu ý thứ tự: Hazard Unit & Forwarding Unit phải nằm TRƯỚC riscv_core.sv
-
-# 6. SIMULATE
-puts "\[SCRIPT\] Simulating..."
-vsim -voptargs="+acc" -L uvm -L work \
-     +UVM_TESTNAME=$TEST_NAME \
-     +UVM_VERBOSITY=UVM_LOW \
-     work.$TB_TOP
-
-# -----------------------------------------------------------------------------
-# 7. WAVEFORM CONFIGURATION
-# -----------------------------------------------------------------------------
-
-# Xóa wave cũ để tránh trùng lặp
-delete wave *
-# Tắt log rác
-suppress 8684,12110
-
-# Cấu hình hiển thị Hex cho dễ nhìn
+# 4. Waveform Setup
 radix -hex
 
-# =============================================================================
-# GROUP 1: TESTBENCH & HAZARD CONTROL (QUAN TRỌNG NHẤT)
-# =============================================================================
-add wave -noupdate -divider {GLOBAL STATUS}
-add wave -noupdate -label "Clock"           /tb_top/clk
-add wave -noupdate -label "Reset"           /tb_top/vif/rst_i
+add wave -divider "=== SYSTEM ==="
+add wave -noupdate -label CLK   /tb_top/clk
+add wave -noupdate -label RST   /tb_top/vif/rst_i
 
-add wave -noupdate -divider {HAZARD & FORWARDING}
-add wave -noupdate -group "Hazard Unit" \
-    -color "Red"    -label "PC Stall"       /tb_top/dut/u_hazard_unit/pc_stall_o \
-    -color "Red"    -label "IF/ID Stall"    /tb_top/dut/u_hazard_unit/if_id_stall_o \
-    -color "Orange" -label "ID/EX Flush"    /tb_top/dut/u_hazard_unit/id_ex_flush_o \
-    -label "Load Use Check"                 /tb_top/dut/u_hazard_unit/id_ex_wb_sel \
-    -label "Rs1 Check"                      /tb_top/dut/u_hazard_unit/if_id_rs1 \
-    -label "Rs2 Check"                      /tb_top/dut/u_hazard_unit/if_id_rs2
+add wave -divider "=== HAZARD CONTROL SIGNALS ==="
+add wave -noupdate -label force_stall -color red    /tb_top/dut/u_control/u_hazard/ctrl_force_stall_id_o
+add wave -noupdate -label flush_if_id -color orange /tb_top/dut/u_control/u_hazard/ctrl_flush_if_id_o
+add wave -noupdate -label flush_id_ex -color orange /tb_top/dut/u_control/u_hazard/ctrl_flush_id_ex_o
+add wave -noupdate -label is_load_use               /tb_top/dut/u_control/u_hazard/is_load_use
+add wave -noupdate -label jump_trap                 /tb_top/dut/u_control/jump_trap_comb
 
-add wave -noupdate -group "Forwarding Unit" \
-    -color "Magenta" -label "Fwd A (00=Reg, 10=MEM, 01=WB)" /tb_top/dut/u_fwd_unit/forward_a_o \
-    -color "Magenta" -label "Fwd B (00=Reg, 10=MEM, 01=WB)" /tb_top/dut/u_fwd_unit/forward_b_o \
-    -label "EX Rs1" /tb_top/dut/u_fwd_unit/rs1_addr_ex \
-    -label "EX Rs2" /tb_top/dut/u_fwd_unit/rs2_addr_ex \
-    -label "MEM Rd" /tb_top/dut/u_fwd_unit/rd_addr_mem \
-    -label "WB Rd"  /tb_top/dut/u_fwd_unit/rd_addr_wb
+add wave -divider "=== FORWARDING ==="
+add wave -noupdate -label fwd_rs1 -color yellow /tb_top/dut/u_control/u_forwarding/ctrl_fwd_rs1_sel_o
+add wave -noupdate -label fwd_rs2 -color yellow /tb_top/dut/u_control/u_forwarding/ctrl_fwd_rs2_sel_o
+add wave -noupdate -label ex_rs1                /tb_top/dut/u_control/u_forwarding/hz_ex_rs1_addr_i
+add wave -noupdate -label ex_rs2                /tb_top/dut/u_control/u_forwarding/hz_ex_rs2_addr_i
+add wave -noupdate -label mem_rd                /tb_top/dut/u_control/u_forwarding/hz_mem_rd_addr_i
+add wave -noupdate -label wb_rd                 /tb_top/dut/u_control/u_forwarding/hz_wb_rd_addr_i
 
-# =============================================================================
-# GROUP 2: PIPELINE FLOW (THEO DÕI LỆNH TRÔI)
-# =============================================================================
-add wave -noupdate -divider {PIPELINE STAGES}
+add wave -divider "=== IMEM HANDSHAKE ==="
+add wave -noupdate -label imem_valid_o /tb_top/vif/imem_valid_o
+add wave -noupdate -label imem_ready_i /tb_top/vif/imem_ready_i
+add wave -noupdate -label imem_addr    /tb_top/vif/imem_addr_o
+add wave -noupdate -label imem_instr   /tb_top/vif/imem_instr_i
+add wave -noupdate -label imem_valid_i /tb_top/vif/imem_valid_i
 
-# Stage 1: FETCH
-add wave -noupdate -group "1. IF Stage" \
-    -label "PC Current"     /tb_top/dut/u_pc_gen/pc_q \
-    -label "PC Next"        /tb_top/dut/u_pc_gen/pc_next \
-    -label "Instr Raw"      /tb_top/dut/imem_instr_i
+add wave -divider "=== PC GEN ==="
+add wave -noupdate -label pc_current /tb_top/dut/u_datapath/u_pc_gen/pc_q
+add wave -noupdate -label pc_next    /tb_top/dut/u_datapath/u_pc_gen/pc_next
 
-# Stage 2: DECODE
-add wave -noupdate -group "2. ID Stage" \
-    -label "Instr Decoded"  /tb_top/dut/u_decoder/instr_i \
-    -label "Rs1 Addr"       /tb_top/dut/u_decoder/rs1_addr_o \
-    -label "Rs2 Addr"       /tb_top/dut/u_decoder/rs2_addr_o \
-    -label "Rd Addr"        /tb_top/dut/u_decoder/rd_addr_o \
-    -label "Imm Val"        /tb_top/dut/u_decoder/imm_o
+add wave -divider "=== DMEM HANDSHAKE ==="
+add wave -noupdate -label dmem_valid_o /tb_top/vif/dmem_valid_o
+add wave -noupdate -label dmem_we      /tb_top/vif/dmem_we_o
+add wave -noupdate -label dmem_addr    /tb_top/vif/dmem_addr_o
+add wave -noupdate -label dmem_wdata   /tb_top/vif/dmem_wdata_o
+add wave -noupdate -label dmem_rdata   /tb_top/vif/dmem_rdata_i
 
-# Stage 3: EXECUTE (QUAN TRỌNG ĐỂ SOI FORWARDING)
-add wave -noupdate -group "3. EX Stage" \
-    -label "PC EX"          /tb_top/dut/id_ex_out.pc \
-    -color "Cyan" -label "ALU OpA (Final)" /tb_top/dut/u_alu/alu_in.a \
-    -color "Cyan" -label "ALU OpB (Final)" /tb_top/dut/u_alu/alu_in.b \
-    -label "ALU Result"     /tb_top/dut/u_alu/alu_o \
-    -label "Branch Taken"   /tb_top/dut/branch_taken
+add wave -divider "=== REGISTER FILE (x1-x10, x31) ==="
+add wave -noupdate -label x1  /tb_top/dut/u_datapath/u_register_file/rf[1]
+add wave -noupdate -label x2  /tb_top/dut/u_datapath/u_register_file/rf[2]
+add wave -noupdate -label x3  /tb_top/dut/u_datapath/u_register_file/rf[3]
+add wave -noupdate -label x4  /tb_top/dut/u_datapath/u_register_file/rf[4]
+add wave -noupdate -label x5  /tb_top/dut/u_datapath/u_register_file/rf[5]
+add wave -noupdate -label x31 /tb_top/dut/u_datapath/u_register_file/rf[31]
 
-# Stage 4: MEMORY
-add wave -noupdate -group "4. MEM Stage" \
-    -label "Mem Addr"       /tb_top/dut/dmem_addr_o \
-    -label "Mem WData"      /tb_top/dut/dmem_wdata_o \
-    -label "Mem RData"      /tb_top/dut/dmem_rdata_i \
-    -label "Mem WE"         /tb_top/dut/dmem_we_o
-
-# Stage 5: WRITEBACK
-add wave -noupdate -group "5. WB Stage" \
-    -label "WB Valid"       /tb_top/dut/mem_wb_valid_o \
-    -color "Green" -label "WB Data" /tb_top/dut/wb_final_data \
-    -label "WB Rd Addr"     /tb_top/dut/mem_wb_out.rd_addr \
-    -label "WB WE"          /tb_top/dut/mem_wb_out.ctrl.rf_we
-
-# =============================================================================
-# GROUP 3: INTERFACES & REG FILE
-# =============================================================================
-add wave -noupdate -divider {SYSTEM STATE}
-
-add wave -noupdate -group "IMEM Handshake" \
-    -label "Req Valid" /tb_top/vif/imem_valid_o \
-    -label "Req Ready" /tb_top/vif/imem_ready_i \
-    -label "Resp Valid" /tb_top/vif/imem_valid_i
-
-add wave -noupdate -group "DMEM Handshake" \
-    -label "Req Valid" /tb_top/vif/dmem_valid_o \
-    -label "Req Ready" /tb_top/vif/dmem_ready_i \
-    -label "Resp Valid" /tb_top/vif/dmem_valid_i
-
-add wave -noupdate -group "Registers (x1-x10)" \
-    -label "x1" /tb_top/dut/u_reg_file/rf[1] \
-    -label "x2" /tb_top/dut/u_reg_file/rf[2] \
-    -label "x3" /tb_top/dut/u_reg_file/rf[3] \
-    -label "x4" /tb_top/dut/u_reg_file/rf[4] \
-    -label "x5" /tb_top/dut/u_reg_file/rf[5] \
-    -label "x31 (Ref)" /tb_top/dut/u_reg_file/rf[31]
-
-# Configure Wave Window
-configure wave -namecolwidth 250
-configure wave -valuecolwidth 100
-configure wave -justifyvalue left
-configure wave -signalnamewidth 1
-configure wave -snapdistance 10
-configure wave -datasetprefix 0
-configure wave -rowmargin 4
-configure wave -childrowmargin 2
-
-# Run simulation
+# 5. Run
 run -all
-zoom full
+
+# 6. Zoom fit
+wave zoom full

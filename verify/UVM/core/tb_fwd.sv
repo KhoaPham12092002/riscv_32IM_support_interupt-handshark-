@@ -245,13 +245,13 @@ class fwd_scoreboard extends uvm_scoreboard;
     // --- GOLDEN PREDICTOR ---
     // Hàm dự đoán logic Forward cho 1 cổng (RS)
     function logic [1:0] predict_forward(logic [4:0] rs, logic [4:0] rd_mem, logic we_mem, logic [4:0] rd_wb, logic we_wb);
-        // Priority 1: EX Hazard (From MEM Stage)
+        // Priority 1: EX Hazard (From MEM Stage) — DUT encodes as 01
         if (we_mem && (rd_mem != 0) && (rd_mem == rs)) begin
-            return 2'b10;
-        end
-        // Priority 2: MEM Hazard (From WB Stage)
-        else if (we_wb && (rd_wb != 0) && (rd_wb == rs)) begin
             return 2'b01;
+        end
+        // Priority 2: MEM Hazard (From WB Stage) — DUT encodes as 10
+        else if (we_wb && (rd_wb != 0) && (rd_wb == rs)) begin
+            return 2'b10;
         end
         // No Hazard
         else begin
@@ -280,12 +280,12 @@ class fwd_scoreboard extends uvm_scoreboard;
         end
 
         // Stats Gathering (Dựa trên RS1 cho đơn giản)
-        if (exp_fwd_a == 2'b10) begin
+        if (exp_fwd_a == 2'b01) begin
             cnt_ex_hazard++;
-            // Check Priority Case: Nếu WB cũng match thì đây là Priority Win
+            // Check Priority Case: WB cũng match → MEM phải thắng
             if (pkt.we_wb && (pkt.rd_wb == pkt.rs1_ex) && (pkt.rd_wb != 0)) cnt_priority_win++;
-        end 
-        else if (exp_fwd_a == 2'b01) cnt_mem_hazard++;
+        end
+        else if (exp_fwd_a == 2'b10) cnt_mem_hazard++;
         else begin 
              if ((pkt.rd_mem == pkt.rs1_ex && pkt.rd_mem == 0) || (pkt.rd_wb == pkt.rs1_ex && pkt.rd_wb == 0)) 
                  cnt_x0_ignore++;
@@ -365,14 +365,14 @@ module tb_top;
     
     // DUT Instantiation
     forwarding_unit dut (
-        .rs1_addr_ex (vif.rs1_addr_ex),
-        .rs2_addr_ex (vif.rs2_addr_ex),
-        .rd_addr_mem (vif.rd_addr_mem),
-        .rf_we_mem   (vif.rf_we_mem),
-        .rd_addr_wb  (vif.rd_addr_wb),
-        .rf_we_wb    (vif.rf_we_wb),
-        .forward_a_o (vif.forward_a_o),
-        .forward_b_o (vif.forward_b_o)
+        .hz_ex_rs1_addr_i   (vif.rs1_addr_ex),
+        .hz_ex_rs2_addr_i   (vif.rs2_addr_ex),
+        .hz_mem_rd_addr_i   (vif.rd_addr_mem),
+        .hz_mem_reg_we_i    (vif.rf_we_mem),
+        .hz_wb_rd_addr_i    (vif.rd_addr_wb),
+        .hz_wb_reg_we_i     (vif.rf_we_wb),
+        .ctrl_fwd_rs1_sel_o (vif.forward_a_o),
+        .ctrl_fwd_rs2_sel_o (vif.forward_b_o)
     );
 
     initial begin

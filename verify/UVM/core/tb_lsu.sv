@@ -94,15 +94,20 @@ class lsu_random_seq extends uvm_sequence #(lsu_item);
         else                return $urandom();   
     endfunction
 
-    // 2. Biased Address (Test Misaligned)
+    // 2. Biased Address (Test Misaligned & Boundary)
     function logic [31:0] get_biased_addr();
         int dice = $urandom_range(0, 99);
         logic [31:0] base;
+        
+        // 5% Boundary Addresses
+        if (dice < 5) return 32'h00000000;
+        if (dice < 10) return 32'hFFFFFFF8;
+        
         base = $urandom() & 32'hFFFFFFFC; // Mặc định Aligned 4 byte
         
-        // 10% cơ hội sinh địa chỉ lẻ (Misaligned)
-        if (dice < 10) return base | $urandom_range(1, 3); 
-        else return base; // 90% Aligned
+        // 20% cơ hội sinh địa chỉ lẻ (Misaligned) cho LH, SW...
+        if (dice < 30) return base | $urandom_range(1, 3); 
+        else return base; // 70% Aligned
     endfunction
 
     // 3. Random Funct3 (LB, LH, LW, LBU, LHU, SB, SH, SW)
@@ -121,13 +126,26 @@ class lsu_random_seq extends uvm_sequence #(lsu_item);
     endfunction
 
     task body();
+        logic [31:0] last_addr = 32'h0;
+        logic        do_consecutive = 0;
+
         repeat(10000) begin
             req = lsu_item::type_id::create("req");
             start_item(req);
             
             // Randomize manually
             req.we            = $urandom_range(0, 1); // 50% Load, 50% Store
-            req.addr          = get_biased_addr();
+            
+            // Store + Load liên tiếp (10% chance)
+            if (do_consecutive) begin
+                req.addr = last_addr;
+                do_consecutive = 0;
+            end else begin
+                req.addr = get_biased_addr();
+                if ($urandom_range(0, 9) == 0 && req.we == 1) do_consecutive = 1;
+            end
+            
+            last_addr         = req.addr;
             req.wdata         = get_biased_data();
             req.mock_mem_data = get_biased_data(); // Dữ liệu giả định trong RAM
             req.funct3        = get_rand_funct3(req.we);

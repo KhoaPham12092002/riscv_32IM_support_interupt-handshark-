@@ -1,0 +1,39 @@
+<!-- ===== THÊM VÀO TRƯỚC </root> TRONG hinh3_4_forwarding_logic.drawio ===== -->
+
+<!-- MUX_A: forwarding mux cho operand A (3 inputs: 00=RF, 01=WB, 10=MEM) -->
+<mxCell id="100" value="MUX_A&lt;br&gt;00: RegFile[rs1]&lt;br&gt;01: WB result&lt;br&gt;10: MEM result" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=8;whiteSpace=wrap;html=1;align=left;spacingLeft=5;verticalAlign=middle;" vertex="1" parent="1">
+  <mxGeometry x="460" y="148" width="130" height="44" as="geometry" />
+</mxCell>
+
+<!-- MUX_B: forwarding mux cho operand B (3 inputs: 00=RF, 01=WB, 10=MEM) -->
+<mxCell id="101" value="MUX_B&lt;br&gt;00: RegFile[rs2]&lt;br&gt;01: WB result&lt;br&gt;10: MEM result" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=8;whiteSpace=wrap;html=1;align=left;spacingLeft=5;verticalAlign=middle;" vertex="1" parent="1">
+  <mxGeometry x="460" y="196" width="130" height="44" as="geometry" />
+</mxCell>
+
+<!-- fwdA (select signal): Forwarding Unit → MUX_A -->
+<mxCell id="102" value="fwdA" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=8;strokeColor=#d6220a;fontColor=#d6220a;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="13" target="100">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+
+<!-- fwdB (select signal): Forwarding Unit → MUX_B -->
+<mxCell id="103" value="fwdB" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=8;strokeColor=#d6220a;fontColor=#d6220a;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.65;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="13" target="101">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+
+<!-- Output label: MUX_A → ALU operand A -->
+<mxCell id="104" value="──► ALU operand A" style="text;html=1;align=left;verticalAlign=middle;fontSize=8;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+  <mxGeometry x="596" y="160" width="115" height="16" as="geometry" />
+</mxCell>
+
+<!-- Output label: MUX_B → ALU operand B -->
+<mxCell id="105" value="──► ALU operand B" style="text;html=1;align=left;verticalAlign=middle;fontSize=8;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+  <mxGeometry x="596" y="208" width="115" height="16" as="geometry" />
+</mxCell>
+
+<!-- Separator line giữa block diagram và bảng ưu tiên -->
+<mxCell id="106" value="" style="endArrow=none;startArrow=none;html=1;strokeColor=#888888;strokeWidth=1.5;" edge="1" parent="1">
+  <mxGeometry relative="1" as="geometry">
+    <mxPoint x="10" y="243" as="sourcePoint" />
+    <mxPoint x="710" y="243" as="targetPoint" />
+  </mxGeometry>
+</mxCell>

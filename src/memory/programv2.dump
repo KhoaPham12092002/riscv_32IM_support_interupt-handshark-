@@ -1,0 +1,132 @@
+
+program.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	20001137          	lui	sp,0x20001
+   4:	ffc10113          	addi	sp,sp,-4 # 20000ffc <_heap_end>
+   8:	20000f37          	lui	t5,0x20000
+   c:	0c000313          	li	t1,192
+  10:	006f0023          	sb	t1,0(t5) # 20000000 <_bss_end>
+  14:	0f900313          	li	t1,249
+  18:	006f00a3          	sb	t1,1(t5)
+  1c:	0a400313          	li	t1,164
+  20:	006f0123          	sb	t1,2(t5)
+  24:	0b000313          	li	t1,176
+  28:	006f01a3          	sb	t1,3(t5)
+  2c:	09900313          	li	t1,153
+  30:	006f0223          	sb	t1,4(t5)
+  34:	09200313          	li	t1,146
+  38:	006f02a3          	sb	t1,5(t5)
+  3c:	08200313          	li	t1,130
+  40:	006f0323          	sb	t1,6(t5)
+  44:	0f800313          	li	t1,248
+  48:	006f03a3          	sb	t1,7(t5)
+  4c:	08000313          	li	t1,128
+  50:	006f0423          	sb	t1,8(t5)
+  54:	09000313          	li	t1,144
+  58:	006f04a3          	sb	t1,9(t5)
+  5c:	fff00e13          	li	t3,-1
+
+00000060 <main_loop>:
+  60:	400022b7          	lui	t0,0x40002
+  64:	0002a303          	lw	t1,0(t0) # 40002000 <KEY_BASE>
+  68:	00137313          	andi	t1,t1,1
+  6c:	f8030ae3          	beqz	t1,0 <_start>
+  70:	400002b7          	lui	t0,0x40000
+  74:	0002a303          	lw	t1,0(t0) # 40000000 <SW_LED_BASE>
+  78:	0062a023          	sw	t1,0(t0)
+  7c:	00337413          	andi	s0,t1,3
+  80:	00235493          	srli	s1,t1,0x2
+  84:	0ff4f493          	andi	s1,s1,255
+  88:	00000393          	li	t2,0
+  8c:	00740c63          	beq	s0,t2,a4 <mode_00>
+  90:	00100393          	li	t2,1
+  94:	06740263          	beq	s0,t2,f8 <mode_01>
+  98:	00200393          	li	t2,2
+  9c:	0a740a63          	beq	s0,t2,150 <mode_10>
+  a0:	fc1ff06f          	j	60 <main_loop>
+
+000000a4 <mode_00>:
+  a4:	02948533          	mul	a0,s1,s1
+  a8:	400015b7          	lui	a1,0x40001
+  ac:	00600613          	li	a2,6
+  b0:	00a00e93          	li	t4,10
+
+000000b4 <hex_loop>:
+  b4:	04060063          	beqz	a2,f4 <mode_00_done>
+  b8:	03d56333          	rem	t1,a0,t4
+  bc:	03d54533          	div	a0,a0,t4
+  c0:	006f03b3          	add	t2,t5,t1
+  c4:	0003c383          	lbu	t2,0(t2)
+  c8:	0075a023          	sw	t2,0(a1) # 40001000 <HEX_BASE>
+  cc:	00458593          	addi	a1,a1,4
+  d0:	fff60613          	addi	a2,a2,-1
+  d4:	00050463          	beqz	a0,dc <fill_blank>
+  d8:	fddff06f          	j	b4 <hex_loop>
+
+000000dc <fill_blank>:
+  dc:	07f00393          	li	t2,127
+
+000000e0 <blank_loop>:
+  e0:	00060a63          	beqz	a2,f4 <mode_00_done>
+  e4:	0075a023          	sw	t2,0(a1)
+  e8:	00458593          	addi	a1,a1,4
+  ec:	fff60613          	addi	a2,a2,-1
+  f0:	ff1ff06f          	j	e0 <blank_loop>
+
+000000f4 <mode_00_done>:
+  f4:	f6dff06f          	j	60 <main_loop>
+
+000000f8 <mode_01>:
+  f8:	03c48463          	beq	s1,t3,120 <mode_01_done>
+  fc:	00048e13          	mv	t3,s1
+ 100:	0044d313          	srli	t1,s1,0x4
+ 104:	020000ef          	jal	ra,124 <tx_hex_char>
+ 108:	00f4f313          	andi	t1,s1,15
+ 10c:	018000ef          	jal	ra,124 <tx_hex_char>
+ 110:	00d00313          	li	t1,13
+ 114:	024000ef          	jal	ra,138 <tx_char>
+ 118:	00a00313          	li	t1,10
+ 11c:	01c000ef          	jal	ra,138 <tx_char>
+
+00000120 <mode_01_done>:
+ 120:	f41ff06f          	j	60 <main_loop>
+
+00000124 <tx_hex_char>:
+ 124:	00a00393          	li	t2,10
+ 128:	00734663          	blt	t1,t2,134 <tx_is_digit>
+ 12c:	03730313          	addi	t1,t1,55
+ 130:	0080006f          	j	138 <tx_char>
+
+00000134 <tx_is_digit>:
+ 134:	03030313          	addi	t1,t1,48
+
+00000138 <tx_char>:
+ 138:	400032b7          	lui	t0,0x40003
+
+0000013c <tx_wait>:
+ 13c:	0082a383          	lw	t2,8(t0) # 40003008 <UART_BASE+0x8>
+ 140:	0013f393          	andi	t2,t2,1
+ 144:	fe039ce3          	bnez	t2,13c <tx_wait>
+ 148:	0062a023          	sw	t1,0(t0)
+ 14c:	00008067          	ret
+
+00000150 <mode_10>:
+ 150:	400032b7          	lui	t0,0x40003
+ 154:	0082a303          	lw	t1,8(t0) # 40003008 <UART_BASE+0x8>
+ 158:	00237393          	andi	t2,t1,2
+ 15c:	00038e63          	beqz	t2,178 <mode_10_done>
+ 160:	0042a503          	lw	a0,4(t0)
+ 164:	0ff57513          	andi	a0,a0,255
+
+00000168 <echo_wait>:
+ 168:	0082a303          	lw	t1,8(t0)
+ 16c:	00137393          	andi	t2,t1,1
+ 170:	fe039ce3          	bnez	t2,168 <echo_wait>
+ 174:	00a2a023          	sw	a0,0(t0)
+
+00000178 <mode_10_done>:
+ 178:	ee9ff06f          	j	60 <main_loop>

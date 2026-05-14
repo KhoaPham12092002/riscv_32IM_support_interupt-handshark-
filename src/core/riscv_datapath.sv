@@ -144,7 +144,7 @@ module riscv_datapath (
     logic real_flush_if_id;
     assign real_flush_if_id = ctrl_flush_if_id_i | flush_if_id_next;
 
-    pipeline_reg #(if_id_t) u_reg_if_id (
+    pipeline_reg #(.WIDTH($bits(if_id_t))) u_reg_if_id (
         .clk_i(clk_i), .rst_i(rst_i),
         .flush_i (real_flush_if_id),  // Xóa rác theo lệnh của Control (hiện tại và chu kỳ sau)
         .valid_i (if_rsp_valid_i), 
@@ -243,7 +243,7 @@ module riscv_datapath (
     logic ex_m_stall;
     assign ex_m_stall = id_ex_valid && id_ex_out.ctrl.m_req.valid && !ex_m_valid_o;
 
-    pipeline_reg #(id_ex_t) u_reg_id_ex (
+    pipeline_reg #(.WIDTH($bits(id_ex_t))) u_reg_id_ex (
         .clk_i  (clk_i), .rst_i  (rst_i),
         .flush_i (ctrl_flush_id_ex_i),
         .valid_i (if_id_valid),
@@ -265,20 +265,62 @@ module riscv_datapath (
 
     // --- Forwarding Mux ---
     logic [31:0] ex_rs1_fwd_data, ex_rs2_fwd_data;
-    
-    always_comb begin
-        case(ctrl_fwd_rs1_sel_i)
-            2'b01: ex_rs1_fwd_data = mem_wb_in.alu_result; 
-            2'b10: ex_rs1_fwd_data = rf_wdata;            
-            default: ex_rs1_fwd_data = id_ex_out.rs1_data; 
-        endcase
+
+    // Forward declaration để dùng trong mem_fwd_val (LSU thực sự instance dưới MEM stage)
+    logic [31:0] lsu_aligned_rdata;
+
+    // MEM-stage forward value: với LOAD phải lấy dữ liệu đọc về (lsu_aligned_rdata),
+    // KHÔNG phải alu_result (alu_result của load = địa chỉ).
+    logic [31:0] mem_fwd_val;
+    assign mem_fwd_val = (ex_mem_out.ctrl.wb_sel == WB_MEM) ? lsu_aligned_rdata
+                                                            : ex_mem_out.alu_result;
+
+    // --- Forwarding Latch (Fix for Stall Hazard) ---
+    logic [31:0] ex_rs1_latched, ex_rs2_latched;
+    logic ex_rs1_fwd_valid, ex_rs2_fwd_valid;
+
+    always_ff @(posedge clk_i or posedge rst_i) begin
+        if (rst_i) begin
+            ex_rs1_latched <= 32'b0;
+            ex_rs1_fwd_valid <= 1'b0;
+            ex_rs2_latched <= 32'b0;
+            ex_rs2_fwd_valid <= 1'b0;
+        end else begin
+            if ((ex_mem_ready && !ex_m_stall) || ctrl_flush_id_ex_i) begin
+                ex_rs1_fwd_valid <= 1'b0;
+                ex_rs2_fwd_valid <= 1'b0;
+            end else if (id_ex_valid) begin
+                if (ctrl_fwd_rs1_sel_i == 2'b01) begin
+                    ex_rs1_latched <= mem_fwd_val;
+                    ex_rs1_fwd_valid <= 1'b1;
+                end else if (ctrl_fwd_rs1_sel_i == 2'b10) begin
+                    ex_rs1_latched <= rf_wdata;
+                    ex_rs1_fwd_valid <= 1'b1;
+                end
+                
+                if (ctrl_fwd_rs2_sel_i == 2'b01) begin
+                    ex_rs2_latched <= mem_fwd_val;
+                    ex_rs2_fwd_valid <= 1'b1;
+                end else if (ctrl_fwd_rs2_sel_i == 2'b10) begin
+                    ex_rs2_latched <= rf_wdata;
+                    ex_rs2_fwd_valid <= 1'b1;
+                end
+            end
+        end
     end
+
     always_comb begin
-        case(ctrl_fwd_rs2_sel_i)
-            2'b01: ex_rs2_fwd_data = mem_wb_in.alu_result;
-            2'b10: ex_rs2_fwd_data = rf_wdata;
-            default: ex_rs2_fwd_data = id_ex_out.rs2_data;
-        endcase
+        if (ctrl_fwd_rs1_sel_i == 2'b01) ex_rs1_fwd_data = mem_fwd_val;
+        else if (ctrl_fwd_rs1_sel_i == 2'b10) ex_rs1_fwd_data = rf_wdata;
+        else if (ex_rs1_fwd_valid) ex_rs1_fwd_data = ex_rs1_latched;
+        else ex_rs1_fwd_data = id_ex_out.rs1_data;
+    end
+
+    always_comb begin
+        if (ctrl_fwd_rs2_sel_i == 2'b01) ex_rs2_fwd_data = mem_fwd_val;
+        else if (ctrl_fwd_rs2_sel_i == 2'b10) ex_rs2_fwd_data = rf_wdata;
+        else if (ex_rs2_fwd_valid) ex_rs2_fwd_data = ex_rs2_latched;
+        else ex_rs2_fwd_data = id_ex_out.rs2_data;
     end
 
     // --- ALU & M-UNIT ---
@@ -351,7 +393,7 @@ module riscv_datapath (
     logic is_mem_access;
     logic lsu_valid_out;
     assign is_mem_access = ex_mem_out.ctrl.lsu_req.we || ex_mem_out.ctrl.lsu_req.re;
-    pipeline_reg #(ex_mem_t) u_reg_ex_mem (
+    pipeline_reg #(.WIDTH($bits(ex_mem_t))) u_reg_ex_mem (
         .clk_i(clk_i), .rst_i(rst_i),
         .flush_i (1'b0), 
         .valid_i (ex_stage_valid), 
@@ -368,7 +410,6 @@ module riscv_datapath (
     assign hz_mem_rd_addr_o = ex_mem_out.rd_addr;
     assign hz_mem_reg_we_o  = ex_mem_out.ctrl.rf_we && ex_mem_valid;
 
-    logic [31:0] lsu_aligned_rdata;
     logic        lsu_ready_out;
 
     lsu u_lsu_core (
@@ -417,7 +458,7 @@ module riscv_datapath (
     logic mem_stage_valid;
     assign mem_stage_valid = ex_mem_valid && (is_mem_access ? lsu_valid_out : 1'b1) && !lsu_err_internal && !dmem_err_i;
 
-    pipeline_reg #(mem_wb_t) u_reg_mem_wb (
+    pipeline_reg #(.WIDTH($bits(mem_wb_t))) u_reg_mem_wb (
         .clk_i(clk_i), .rst_i(rst_i),
         .flush_i (1'b0),
         .valid_i (mem_stage_valid),

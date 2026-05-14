@@ -1,0 +1,1 @@
+C:/quartus_standare/questa_fse/win64/VisualizerRls/bin/viscom.exe -nolock -quiet -jmem_size 1720752 work.tb_soc_io -quiet -auto_acc_if_foreign -work work +acc -allow_unnamed -o _opt1 -id 1-580205faf3b8-6a059f07-f0-4278 +__betafsm

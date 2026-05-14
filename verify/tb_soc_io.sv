@@ -1,43 +1,32 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// Module : tb_soc_io
-// Target : soc_top_io (RISC-V RV32IM SoC + GPIO/UART/LCD)
+// tb_soc_io — HEX Function Test (Mode 00)
 //
-// Test plan:
-//   TEST 1  Mode 00 (SW[1:0]=00): LCD display "THESIS BK 2026"
-//             - Verify lcd_on_o=1, lcd_rw_o=0
-//             - Monitor CMD/DATA strobes on rising edge of lcd_en_o
-//   TEST 2  Mode 01 (SW[1:0]=01): LED = (SW[9:2])^2
-//             - 2a: N=5  → LED=25
-//             - 2b: N=15 → LED=225
-//             - 2c: N=0  → LED=0
-//             - 2d: N=10 → LED=100
-//   TEST 3  Mode 02 (SW[1:0]=10): UART TX decimal string + CRLF
-//             - 3a: N=42  → "42\r\n"
-//             - 3b: N=100 → "100\r\n"
+// Mục đích: Kiểm tra toàn diện chức năng hiển thị N² lên 6 màn HEX 7-đoạn.
+//   SW[1:0] = 00  →  Mode 00
+//   SW[9:2] = N   →  VALUE (0..255)
+//   HEX hiển thị N² theo từng chữ số từ thấp lên cao.
 //
-// SW encoding:
-//   sw_i[1:0]  = mode (00/01/10)
-//   sw_i[9:2]  = N value (8-bit, 0-255)
+// Bảng mã 7-đoạn (common-anode, bits[6:0] = gfedcba):
+//   0→40  1→79  2→24  3→30  4→19  5→12  6→02  7→78  8→00  9→10  blank→7F
 //
-// Timing:
-//   Clock : 50 MHz (20 ns period)
-//   UART  : 115200 baud → 1 bit ≈ 8680 ns
+// Test groups:
+//   G1  N = 0..3    → N² 1 chữ số  ( 0..  9)
+//   G2  N = 4..9    → N² 2 chữ số  (16.. 81)
+//   G3  N = 10..31  → N² 3 chữ số  (100..961)
+//   G4  N = 32..99  → N² 4 chữ số  (1024..9801)
+//   G5  N = 100..255→ N² 5 chữ số  (10000..65025)
 // =============================================================================
-
 module tb_soc_io;
 
     // =========================================================================
     // Parameters
     // =========================================================================
-    localparam int  CLK_FREQ_HZ  = 50_000_000;
-    localparam int  BAUD_RATE    = 115_200;
-    localparam int  CLK_PERIOD   = 20;               // ns
-
-    // Bit period at BAUD_RATE over CLK_FREQ clock
-    localparam int  BIT_CLKS     = CLK_FREQ_HZ / BAUD_RATE;  // ~434 clock cycles/bit
-    localparam int  BIT_NS       = BIT_CLKS * CLK_PERIOD;    // ~8680 ns/bit
+    localparam int CLK_FREQ_HZ = 50_000_000;
+    localparam int BAUD_RATE   = 115_200;
+    localparam int CLK_PERIOD  = 20;            // ns (50 MHz)
+    localparam int WAIT_CYCLES = 30_000;        // chu kỳ chờ sau khi thay SW
 
     // =========================================================================
     // Signals
@@ -46,293 +35,306 @@ module tb_soc_io;
     logic        rst;
     logic [9:0]  sw_i;
     logic [9:0]  led_o;
+    logic [3:0]  key_i;
     logic        uart_rx_i;
     logic        uart_tx_o;
-    logic [7:0]  lcd_data_o;
-    logic        lcd_en_o;
-    logic        lcd_rs_o;
-    logic        lcd_rw_o;
-    logic        lcd_on_o;
+    logic [6:0]  hex0_o, hex1_o, hex2_o, hex3_o, hex4_o, hex5_o;
 
     // =========================================================================
     // DUT
     // =========================================================================
     soc_top_io #(
-        .IMEM_HEX  ("../src/memory/program_io.hex"),
+        .IMEM_HEX  ("../src/memory/programv2.hex"),
         .IMEM_SZ   (4096),
         .DMEM_SZ   (4096),
         .CLK_FREQ  (CLK_FREQ_HZ),
         .BAUD_RATE (BAUD_RATE)
     ) u_soc (
-        .clk_i      (clk),
-        .rst_i      (rst),
-        .sw_i       (sw_i),
-        .led_o      (led_o),
-        .uart_rx_i  (uart_rx_i),
-        .uart_tx_o  (uart_tx_o),
-        .lcd_data_o (lcd_data_o),
-        .lcd_en_o   (lcd_en_o),
-        .lcd_rs_o   (lcd_rs_o),
-        .lcd_rw_o   (lcd_rw_o),
-        .lcd_on_o   (lcd_on_o)
+        .clk_i     (clk),
+        .rst_i     (rst),
+        .sw_i      (sw_i),
+        .led_o     (led_o),
+        .key_i     (key_i),
+        .uart_rx_i (uart_rx_i),
+        .uart_tx_o (uart_tx_o),
+        .hex0_o    (hex0_o),
+        .hex1_o    (hex1_o),
+        .hex2_o    (hex2_o),
+        .hex3_o    (hex3_o),
+        .hex4_o    (hex4_o),
+        .hex5_o    (hex5_o)
     );
 
     // =========================================================================
-    // Clock & UART idle
+    // Clock
     // =========================================================================
-    initial clk     = 1'b0;
-    always  #(CLK_PERIOD/2) clk = ~clk;
-
-    assign uart_rx_i = 1'b1;   // UART RX idle (no incoming data)
+    initial clk = 1'b0;
+    always  #(CLK_PERIOD / 2) clk = ~clk;
 
     // =========================================================================
-    // HELPER: capture 1 UART byte from uart_tx_o
-    //   Returns captured data; sets timeout_o=1 if start bit not seen within
-    //   TIMEOUT_CLKS clock cycles.
-    // =========================================================================
-    localparam int UART_TIMEOUT_CLKS = 200_000;
-
-    task automatic uart_capture_byte(
-        output logic [7:0] data,
-        output logic       timed_out
-    );
-        int wait_cnt;
-
-        // Wait for falling edge (start bit), counting clock cycles
-        timed_out = 1'b0;
-        wait_cnt  = 0;
-        while (uart_tx_o === 1'b1) begin
-            @(posedge clk);
-            wait_cnt++;
-            if (wait_cnt >= UART_TIMEOUT_CLKS) begin
-                timed_out = 1'b1;
-                data      = 8'hXX;
-                return;
-            end
-        end
-
-        // Sample at center of each data bit
-        // Start bit just detected (uart_tx_o went low); delay 1.5 bit periods
-        #(BIT_NS + BIT_NS/2);
-        data = 8'h00;
-        for (int i = 0; i < 8; i++) begin
-            data[i] = uart_tx_o;
-            if (i < 7) #BIT_NS;
-        end
-        // Consume rest of stop bit
-        #BIT_NS;
-    endtask
-
-    // =========================================================================
-    // SCORECARD
+    // Scorecard
     // =========================================================================
     int unsigned pass_cnt = 0;
     int unsigned fail_cnt = 0;
 
-    task check(input string msg, input logic cond);
-        if (cond) begin
-            $display("  [PASS] %s", msg);
+    // =========================================================================
+    // FUNCTION: digit → 7-seg code (common-anode, bits[6:0])
+    //   -1 (hoặc bất kỳ số ngoài 0-9) → 7'h7F (blank, tất cả segment tắt)
+    // =========================================================================
+    function automatic logic [6:0] seg7(input int d);
+        case (d)
+            0: return 7'h40;
+            1: return 7'h79;
+            2: return 7'h24;
+            3: return 7'h30;
+            4: return 7'h19;
+            5: return 7'h12;
+            6: return 7'h02;
+            7: return 7'h78;
+            8: return 7'h00;
+            9: return 7'h10;
+            default: return 7'h7F; // blank
+        endcase
+    endfunction
+
+    // =========================================================================
+    // TASK: test_n(N)
+    //   1. Set SW = {N[7:0], 2'b00}  (Mode 00, VALUE = N)
+    //   2. Chờ WAIT_CYCLES chu kỳ để CPU tính N² và ghi HEX registers
+    //   3. Tính expected codes cho cả 6 màn (LSB-first, blank nếu hết chữ số)
+    //   4. So sánh và in kết quả
+    //
+    // Thuật toán expected khớp với assembly (programv2.s):
+    //   - Luôn ghi ít nhất 1 chữ số (kể cả N²=0 → '0')
+    //   - Sau khi thương=0: fill blank cho các màn còn lại
+    // =========================================================================
+    task automatic test_n(input int N);
+        int          nsq, tmp;
+        logic [6:0]  exp[0:5];
+        logic        all_ok;
+
+        nsq = N * N;
+        tmp = nsq;
+
+        // Tính expected (hex0=ones, hex1=tens, …)
+        for (int i = 0; i < 6; i++) begin
+            if (i == 0 || tmp > 0) begin
+                exp[i] = seg7(tmp % 10);
+                tmp    = tmp / 10;
+            end else begin
+                exp[i] = 7'h7F; // blank
+            end
+        end
+
+        // Drive & wait
+        sw_i = {N[7:0], 2'b00};
+        repeat (WAIT_CYCLES) @(posedge clk);
+
+        // Compare
+        all_ok = (hex0_o === exp[0]) && (hex1_o === exp[1]) &&
+                 (hex2_o === exp[2]) && (hex3_o === exp[3]) &&
+                 (hex4_o === exp[4]) && (hex5_o === exp[5]);
+
+        if (all_ok) begin
             pass_cnt++;
+            $display("  [PASS] N=%3d  N²=%5d  HEX[5:0]=%02h %02h %02h %02h %02h %02h",
+                N, nsq,
+                hex5_o, hex4_o, hex3_o, hex2_o, hex1_o, hex0_o);
         end else begin
-            $display("  [FAIL] %s", msg);
             fail_cnt++;
+            $display("  [FAIL] N=%3d  N²=%5d", N, nsq);
+            $display("           got HEX[5:0] = %02h %02h %02h %02h %02h %02h",
+                hex5_o, hex4_o, hex3_o, hex2_o, hex1_o, hex0_o);
+            $display("           exp HEX[5:0] = %02h %02h %02h %02h %02h %02h",
+                exp[5], exp[4], exp[3], exp[2], exp[1], exp[0]);
         end
     endtask
 
     // =========================================================================
-    // MONITORS (passive, always active after reset)
+    // MONITOR: in log mỗi khi HEX0 thay đổi (passive, không ảnh hưởng test)
     // =========================================================================
-
-    // --- LCD strobe: print on rising edge of lcd_en_o ---
-    logic prev_lcd_en;
-    always_ff @(posedge clk) prev_lcd_en <= lcd_en_o;
-
+    logic [6:0] hex0_prev;
+    initial hex0_prev = 7'hXX;
     always @(posedge clk) begin
-        if (lcd_en_o && !prev_lcd_en && !rst) begin
-            if (lcd_rs_o == 1'b0)
-                $display("  [LCD-CMD]  t=%0t  CMD =0x%02X", $time, lcd_data_o);
-            else
-                $display("  [LCD-DATA] t=%0t  DATA=0x%02X ('%c')", $time, lcd_data_o,
-                         (lcd_data_o >= 8'h20 && lcd_data_o <= 8'h7E) ? lcd_data_o : 8'h2E);
-        end
-    end
-
-    // --- LED change monitor ---
-    logic [9:0] led_prev_mon;
-    initial led_prev_mon = 10'h3FF;
-    always @(posedge clk) begin
-        if (!rst && led_o !== led_prev_mon && ^led_o !== 1'bX) begin
-            $display("  [LED]      t=%0t  LED=0x%03X (%0d)", $time, led_o, led_o);
-            led_prev_mon = led_o;
-        end
-    end
-
-    // --- Register-writeback debug (sparse — only non-x0 writes) ---
-    always @(posedge clk) begin
-        if (!rst &&
-            u_soc.u_datapath.mem_wb_valid &&
-            u_soc.u_datapath.mem_wb_out.ctrl.rf_we &&
-            u_soc.u_datapath.mem_wb_out.rd_addr != 5'd0)
-        begin
-            $display("  [WB]       t=%0t  PC=0x%08X  x%0d <= 0x%08X",
-                     $time,
-                     u_soc.u_datapath.mem_wb_out.pc_plus4 - 32'd4,
-                     u_soc.u_datapath.mem_wb_out.rd_addr,
-                     u_soc.u_datapath.rf_wdata);
+        if (!rst && hex0_o !== hex0_prev && ^hex0_o !== 1'bX) begin
+            $display("  [MON]  t=%8t ns  HEX[5..0]=%02h %02h %02h %02h %02h %02h  SW=%03h",
+                $time,
+                hex5_o, hex4_o, hex3_o, hex2_o, hex1_o, hex0_o,
+                sw_i);
+            hex0_prev = hex0_o;
         end
     end
 
     // =========================================================================
-    // STIMULUS + CHECKING
+    // IO ACCESS MONITOR — log mọi io_req_valid (HEX, KEY, SW/LED, UART, GPIO)
+    // Giúp trả lời: HEX write có thực sự xảy ra không?
     // =========================================================================
-    logic [7:0] rx_byte;
-    logic       rx_to;
-    logic [9:0] led_snap;
+    always @(posedge clk) begin
+        if (!rst && u_soc.io_req_valid) begin
+            $display("  [IO]   t=%8t ns  addr=%08h  we=%b  wdata=%08h  cs={swled=%b hex=%b key=%b uart=%b gpio=%b}",
+                $time,
+                u_soc.dmem_addr,
+                u_soc.io_we,
+                u_soc.dmem_wdata,
+                u_soc.cs_sw_led, u_soc.cs_hex, u_soc.cs_key, u_soc.cs_uart, u_soc.cs_gpio);
+        end
+    end
 
+    // Đếm số lần ghi HEX để phát hiện nhanh "không bao giờ ghi"
+    int unsigned hex_write_cnt = 0;
+    always @(posedge clk) begin
+        if (!rst && u_soc.cs_hex && u_soc.io_we) hex_write_cnt++;
+    end
+
+    // =========================================================================
+    // DEBUG MONITOR 1: LSU DONE state — chỉ cho LOAD (we_q=0)
+    // =========================================================================
+    always @(posedge clk) begin
+        if (!rst && u_soc.u_datapath.u_lsu_core.state == 2'd3 /*DONE*/
+                  && !u_soc.u_datapath.u_lsu_core.we_q) begin
+            $display("  [LSU-DONE] t=%8t ns  addr_q=%08h  dmem_rdata_q=%08h  lsu_rdata_o=%08h  funct3_q=%b",
+                $time,
+                u_soc.u_datapath.u_lsu_core.addr_q,
+                u_soc.u_datapath.u_lsu_core.dmem_rdata_q,
+                u_soc.u_datapath.u_lsu_core.lsu_rdata_o,
+                u_soc.u_datapath.u_lsu_core.funct3_q);
+        end
+    end
+
+    // =========================================================================
+    // DEBUG MONITOR 2: mỗi lần x6 được ghi (rf_we cho x6)
+    // =========================================================================
+    always @(posedge clk) begin
+        if (!rst && u_soc.u_datapath.mem_wb_valid
+                  && u_soc.u_datapath.mem_wb_out.ctrl.rf_we
+                  && u_soc.u_datapath.mem_wb_out.rd_addr == 5'd6) begin
+            $display("  [WB-x6]    t=%8t ns  rf_wdata=%08h  wb_sel=%b  load_data=%08h  alu_result=%08h",
+                $time,
+                u_soc.u_datapath.rf_wdata,
+                u_soc.u_datapath.mem_wb_out.ctrl.wb_sel,
+                u_soc.u_datapath.mem_wb_out.load_data,
+                u_soc.u_datapath.mem_wb_out.alu_result);
+        end
+    end
+
+    // =========================================================================
+    // DEBUG MONITOR 3: Trace EX stage for all instructions
+    // =========================================================================
+    always @(posedge clk) begin
+        if (!rst && u_soc.u_datapath.id_ex_valid) begin
+            $display("  [EX-TRACE] t=%8t ns  pc=%08h rs1=%d rs2=%d  fwd_s1=%b fwd_s2=%b  rs1_fwd=%08h rs2_fwd=%08h  alu_result=%08h  ready=%b  lsu=%d",
+                $time,
+                u_soc.u_datapath.id_ex_out.pc,
+                u_soc.u_datapath.id_ex_out.rs1_addr,
+                u_soc.u_datapath.id_ex_out.rs2_addr,
+                u_soc.u_datapath.ctrl_fwd_rs1_sel_i,
+                u_soc.u_datapath.ctrl_fwd_rs2_sel_i,
+                u_soc.u_datapath.ex_rs1_fwd_data,
+                u_soc.u_datapath.ex_rs2_fwd_data,
+                u_soc.u_datapath.ex_alu_result,
+                u_soc.u_datapath.ex_mem_ready,
+                u_soc.u_datapath.u_lsu_core.state);
+        end
+    end
+
+    // =========================================================================
+    // BUILD MARKER — verify fix compiled in
+    // =========================================================================
+    initial $display("[BUILD] mem_fwd_val fix compiled in — tb_soc_io debug monitors active");
+
+    // =========================================================================
+    // STIMULUS
+    // =========================================================================
     initial begin
-        // ── Reset ──────────────────────────────────────────────────────────
-        rst  = 1'b1;
-        sw_i = 10'h000;
-        repeat (10) @(posedge clk);
-        @(posedge clk);
-        rst  = 1'b0;
+        // ── Reset ─────────────────────────────────────────────────────────────
+        rst       = 1'b1;
+        sw_i      = 10'h000;
+        key_i     = 4'hF;    // Active-low: 4'hF = không nhấn phím nào
+        uart_rx_i = 1'b1;    // UART idle
+        repeat (20) @(posedge clk);
+        rst = 1'b0;
+
         $display("=============================================================");
-        $display("[TB] SoC reset released  t=%0t", $time);
+        $display("[TB] Mode 00 — HEX 7-seg N² Function Test");
+        $display("     DUT: soc_top_io + programv2.hex");
+        $display("     SW[1:0]=00 (Mode 00)  SW[9:2]=N  →  HEX shows N²");
+        $display("     7-seg common-anode encoding:");
+        $display("       0→40  1→79  2→24  3→30  4→19");
+        $display("       5→12  6→02  7→78  8→00  9→10  blank→7F");
         $display("=============================================================");
 
-        // ──────────────────────────────────────────────────────────────────
-        // TEST 1: Mode 00 — LCD display "THESIS BK 2026"
-        // ──────────────────────────────────────────────────────────────────
+        // Chờ _init hoàn thành: li + sb × 10 digits + li sp, li x28
+        // Ước tính: ~100 instructions × ~4 cycles = ~400 cycles, dùng 500 để chắc chắn
+        repeat (500) @(posedge clk);
+
+        // ====================================================================
+        // GROUP 1: N² = 1 chữ số  (N = 0..3)
+        // ====================================================================
         $display("");
-        $display("[TEST 1] Mode 00 - LCD Display 'THESIS BK 2026'");
-        $display("  (monitor LCD_CMD/DATA strobes for 120K cycles)");
-        sw_i = 10'h000;                // mode=00, N=0
-        // LCD sequence: init cmds 0x38/0x0C/0x01, delay, cursor, 14 data bytes
-        // Each LCD op ≈ 2600 clk cycles (setup+strobe+hold)
-        // 3 init + clear-delay(4096) + 1 cursor + 14 data ≈ 18 ops * 2600 + 4096 ≈ 51K clks
-        repeat (120_000) @(posedge clk);
+        $display("[G1] N=0..3  →  N²=0..9  (1 chữ số, hex1..5=blank)");
+        test_n(0);   //   0²=0
+        test_n(1);   //   1²=1
+        test_n(2);   //   2²=4
+        test_n(3);   //   3²=9
 
-        check("LCD backlight always ON (lcd_on_o=1)", lcd_on_o === 1'b1);
-        check("LCD R/W always WRITE (lcd_rw_o=0)",   lcd_rw_o === 1'b0);
-
-        // ──────────────────────────────────────────────────────────────────
-        // TEST 2: Mode 01 — LED perfect square
-        //   sw_i = { SW[9:2]=N[7:0], SW[1:0]=2'b01 }
-        //   Expected: led_o = (N*N) & 10'h3FF
-        // ──────────────────────────────────────────────────────────────────
+        // ====================================================================
+        // GROUP 2: N² = 2 chữ số  (N = 4..9)
+        // ====================================================================
         $display("");
-        $display("[TEST 2] Mode 01 - LED Perfect Square");
+        $display("[G2] N=4..9  →  N²=16..81  (2 chữ số, hex2..5=blank)");
+        test_n(4);   //   4²=16   hex0='6'(02)  hex1='1'(79)
+        test_n(5);   //   5²=25   hex0='5'(12)  hex1='2'(24)
+        test_n(6);   //   6²=36   hex0='6'(02)  hex1='3'(30)
+        test_n(7);   //   7²=49   hex0='9'(10)  hex1='4'(19)
+        test_n(8);   //   8²=64   hex0='4'(19)  hex1='6'(02)
+        test_n(9);   //   9²=81   hex0='1'(79)  hex1='8'(00)
 
-        // 2a: N=5 → 5^2=25
-        sw_i = {8'd5, 2'b01};          // sw_i = 10'b00_0001_0101
-        repeat (5_000) @(posedge clk);
-        led_snap = led_o;
-        $display("  N=5  : LED=%0d (expect 25)", led_snap);
-        check("LED=25 when N=5",  led_snap === 10'd25);
-
-        // 2b: N=15 → 15^2=225
-        sw_i = {8'd15, 2'b01};         // sw_i = 10'b00_0011_1101
-        repeat (5_000) @(posedge clk);
-        led_snap = led_o;
-        $display("  N=15 : LED=%0d (expect 225)", led_snap);
-        check("LED=225 when N=15", led_snap === 10'd225);
-
-        // 2c: N=0 → 0^2=0
-        sw_i = {8'd0, 2'b01};          // sw_i = 10'b00_0000_0001
-        repeat (5_000) @(posedge clk);
-        led_snap = led_o;
-        $display("  N=0  : LED=%0d (expect 0)", led_snap);
-        check("LED=0 when N=0",   led_snap === 10'd0);
-
-        // 2d: N=10 → 10^2=100
-        sw_i = {8'd10, 2'b01};         // sw_i = 10'b00_0010_1001
-        repeat (5_000) @(posedge clk);
-        led_snap = led_o;
-        $display("  N=10 : LED=%0d (expect 100)", led_snap);
-        check("LED=100 when N=10", led_snap === 10'd100);
-
-        // ──────────────────────────────────────────────────────────────────
-        // TEST 3: Mode 02 — UART TX decimal string
-        //   sw_i = { SW[9:2]=N[7:0], SW[1:0]=2'b10 }
-        //
-        //   CPU algorithm:
-        //     hundreds (if != 0): ASCII digit
-        //     tens digit  : ASCII digit
-        //     units digit : ASCII digit
-        //     CR (0x0D)
-        //     LF (0x0A)
-        //   Example N=42 → skips hundreds → sends '4','2',CR,LF
-        // ──────────────────────────────────────────────────────────────────
+        // ====================================================================
+        // GROUP 3: N² = 3 chữ số  (N = 10..31)
+        // ====================================================================
         $display("");
-        $display("[TEST 3a] Mode 02 - UART TX  N=42 → expect '42\\r\\n'");
-        sw_i = {8'd42, 2'b10};         // sw_i = 10'b00_1010_1010
+        $display("[G3] N=10..31  →  N²=100..961  (3 chữ số, hex3..5=blank)");
+        test_n(10);  //  10²=100   0,0,1
+        test_n(11);  //  11²=121   1,2,1
+        test_n(15);  //  15²=225   5,2,2
+        test_n(20);  //  20²=400   0,0,4
+        test_n(25);  //  25²=625   5,2,6
+        test_n(31);  //  31²=961   1,6,9
 
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 1: 0x%02X '%c' %s", rx_byte,
-                 (rx_byte >= 8'h20) ? rx_byte : 8'h2E,
-                 rx_to ? "(TIMEOUT)" : "");
-        check("UART N=42 byte1='4' (0x34)", !rx_to && rx_byte === 8'h34);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 2: 0x%02X '%c' %s", rx_byte,
-                 (rx_byte >= 8'h20) ? rx_byte : 8'h2E,
-                 rx_to ? "(TIMEOUT)" : "");
-        check("UART N=42 byte2='2' (0x32)", !rx_to && rx_byte === 8'h32);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 3: 0x%02X %s", rx_byte, rx_to ? "(TIMEOUT)" : "");
-        check("UART N=42 byte3=CR (0x0D)", !rx_to && rx_byte === 8'h0D);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 4: 0x%02X %s", rx_byte, rx_to ? "(TIMEOUT)" : "");
-        check("UART N=42 byte4=LF (0x0A)", !rx_to && rx_byte === 8'h0A);
-
-        // Wait through UART delay loop before next test
-        // UART delay = ~32768 cycles (lui x28, 8; loop)
-        repeat (80_000) @(posedge clk);
-
+        // ====================================================================
+        // GROUP 4: N² = 4 chữ số  (N = 32..99)
+        // ====================================================================
         $display("");
-        $display("[TEST 3b] Mode 02 - UART TX  N=100 → expect '100\\r\\n'");
-        // N=100=0b01100100, SW[9:2]=100, SW[1:0]=10
-        sw_i = {8'd100, 2'b10};        // sw_i = 10'b01_1001_0010
+        $display("[G4] N=32..99  →  N²=1024..9801  (4 chữ số, hex4..5=blank)");
+        test_n(32);  //  32²=1024   4,2,0,1
+        test_n(50);  //  50²=2500   0,0,5,2
+        test_n(77);  //  77²=5929   9,2,9,5
+        test_n(99);  //  99²=9801   1,0,8,9
 
-        // N=100: hundreds=1→'1', tens=0→'0', units=0→'0', CR, LF
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 1: 0x%02X '%c' %s", rx_byte,
-                 (rx_byte >= 8'h20) ? rx_byte : 8'h2E,
-                 rx_to ? "(TIMEOUT)" : "");
-        check("UART N=100 byte1='1' (0x31)", !rx_to && rx_byte === 8'h31);
+        // ====================================================================
+        // GROUP 5: N² = 5 chữ số  (N = 100..255)
+        // ====================================================================
+        $display("");
+        $display("[G5] N=100..255  →  N²=10000..65025  (5 chữ số, hex5=blank)");
+        test_n(100); // 100²=10000   0,0,0,0,1
+        test_n(127); // 127²=16129   9,2,1,6,1
+        test_n(200); // 200²=40000   0,0,0,0,4
+        test_n(255); // 255²=65025   5,2,0,5,6
 
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 2: 0x%02X '%c' %s", rx_byte,
-                 (rx_byte >= 8'h20) ? rx_byte : 8'h2E,
-                 rx_to ? "(TIMEOUT)" : "");
-        check("UART N=100 byte2='0' (0x30)", !rx_to && rx_byte === 8'h30);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 3: 0x%02X '%c' %s", rx_byte,
-                 (rx_byte >= 8'h20) ? rx_byte : 8'h2E,
-                 rx_to ? "(TIMEOUT)" : "");
-        check("UART N=100 byte3='0' (0x30)", !rx_to && rx_byte === 8'h30);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 4: 0x%02X %s", rx_byte, rx_to ? "(TIMEOUT)" : "");
-        check("UART N=100 byte4=CR (0x0D)", !rx_to && rx_byte === 8'h0D);
-
-        uart_capture_byte(rx_byte, rx_to);
-        $display("  Byte 5: 0x%02X %s", rx_byte, rx_to ? "(TIMEOUT)" : "");
-        check("UART N=100 byte5=LF (0x0A)", !rx_to && rx_byte === 8'h0A);
-
-        // ──────────────────────────────────────────────────────────────────
-        // RESULTS
-        // ──────────────────────────────────────────────────────────────────
+        // ====================================================================
+        // SUMMARY
+        // ====================================================================
         $display("");
         $display("=============================================================");
-        $display("[TB] RESULT: PASS=%0d  FAIL=%0d", pass_cnt, fail_cnt);
+        $display("[TB] RESULT: PASS=%0d  FAIL=%0d  TOTAL=%0d",
+                  pass_cnt, fail_cnt, pass_cnt + fail_cnt);
+        $display("[TB] Tổng số lần ghi HEX peripheral (cs_hex && io_we) = %0d", hex_write_cnt);
+        if (hex_write_cnt == 0)
+            $display("[TB] >>> CẢNH BÁO: KHÔNG có HEX write nào — CPU không reach mode_00 hoặc cs_hex sai!");
         if (fail_cnt == 0)
-            $display("[TB] *** ALL TESTS PASSED ***");
+            $display("[TB] *** ALL HEX TESTS PASSED ***");
         else
-            $display("[TB] *** %0d TEST(S) FAILED — see waveform ***", fail_cnt);
+            $display("[TB] *** %0d TEST(S) FAILED — xem waveform ***", fail_cnt);
         $display("=============================================================");
         $stop;
     end

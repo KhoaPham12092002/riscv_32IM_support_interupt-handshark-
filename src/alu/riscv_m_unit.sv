@@ -43,10 +43,15 @@ module riscv_m_unit (
     // ========================================================================
     // 2. COMBINATIONAL LOGIC
     // ========================================================================
-    assign is_div_op   = (m_in.op inside {M_DIV, M_DIVU, M_REM, M_REMU});
-    assign a_is_signed = (m_in.op inside {M_MUL, M_MULH, M_MULHSU, M_DIV, M_REM});
-    assign b_is_signed = (m_in.op inside {M_MUL, M_MULH, M_DIV, M_REM});
+	 assign is_div_op   = (m_in.op == M_DIV) || (m_in.op == M_DIVU) || 
+                         (m_in.op == M_REM) || (m_in.op == M_REMU);
 
+    assign a_is_signed = (m_in.op == M_MUL) || (m_in.op == M_MULH) || 
+                         (m_in.op == M_MULHSU) || (m_in.op == M_DIV) || 
+                         (m_in.op == M_REM);
+
+    assign b_is_signed = (m_in.op == M_MUL) || (m_in.op == M_MULH) || 
+                         (m_in.op == M_DIV) || (m_in.op == M_REM);
     assign mul_op_a = a_is_signed ? {m_in.rs1_data[31], m_in.rs1_data} : {1'b0, m_in.rs1_data};
     assign mul_op_b = b_is_signed ? {m_in.rs2_data[31], m_in.rs2_data} : {1'b0, m_in.rs2_data};
     assign mul_res_full = $signed(mul_op_a) * $signed(mul_op_b);

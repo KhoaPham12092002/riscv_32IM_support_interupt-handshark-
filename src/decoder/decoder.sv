@@ -2,28 +2,40 @@ import riscv_32im_pkg::*;
 import riscv_instr::*;
 
 module decoder 
-
 (
-    input logic [31:0]        instr_i,
-    output dec_out_t          ctrl_o,   
-    output logic [31:0]        imm_o,
+    input logic [31:0]       instr_i,
+    output dec_out_t         ctrl_o,   
+    output logic [31:0]      imm_o,
     output logic [4:0]       rd_addr_o,
     output logic [4:0]       rs1_addr_o,
     output logic [4:0]       rs2_addr_o
 );
 
 // 1. INSTRUCTION SLICING (Internal Data Types)
-    instr_t instr; 
-    assign instr.raw = instr_i;
+    // Khai báo các biến struct riêng biệt để thay thế union
+    r_type_t r_inst;
+    i_type_t i_inst;
+    s_type_t s_inst;
+    b_type_t b_inst;
+    u_type_t u_inst;
+    j_type_t j_inst;
+
+    // Ép kiểu trực tiếp (Wire aliasing) từ instr_i
+    assign r_inst = instr_i;
+    assign i_inst = instr_i;
+    assign s_inst = instr_i;
+    assign b_inst = instr_i;
+    assign u_inst = instr_i;
+    assign j_inst = instr_i;
     
     // assign input to BUS
-    assign rd_addr_o   = instr.r_type.rd;
-    assign rs1_addr_o  = instr.r_type.rs1;
-    assign rs2_addr_o  = instr.r_type.rs2;  
+    assign rd_addr_o   = r_inst.rd;
+    assign rs1_addr_o  = r_inst.rs1;
+    assign rs2_addr_o  = r_inst.rs2;  
 
-// 2.MAIN CONTROL DECODER 
+// 2. MAIN CONTROL DECODER 
     always_comb begin
-	// Default Assignments 
+    // Default Assignments 
         ctrl_o.illegal_instr    = 1'b0;
         ctrl_o.is_mret          = 1'b0;
         ctrl_o.is_ecall         = 1'b0;
@@ -31,15 +43,15 @@ module decoder
         ctrl_o.imm_type         = IMM_I;
         ctrl_o.rf_we            = 1'b0;
         ctrl_o.wb_sel           = WB_ALU;
-	// Reset sub-packets to 0
-	ctrl_o.alu_req = ALU_REQ_RST;
-	ctrl_o.m_req   = M_REQ_RST;
-	ctrl_o.lsu_req = LSU_REQ_RST;
-	ctrl_o.br_req  = BR_REQ_RST;
-    ctrl_o.csr_req = CSR_REQ_RST;
+    // Reset sub-packets to 0
+        ctrl_o.alu_req = ALU_REQ_RST;
+        ctrl_o.m_req   = M_REQ_RST;
+        ctrl_o.lsu_req = LSU_REQ_RST;
+        ctrl_o.br_req  = BR_REQ_RST;
+        ctrl_o.csr_req = CSR_REQ_RST;
     
     // Instruction Decoding
-     casez (instr.raw)
+     casez (instr_i) // Đã đổi sang xét trực tiếp instr_i
         // GROUP 1: UPPER IMMEDIATE (U-Type)
             LUI: begin
                 ctrl_o.imm_type = IMM_U;    
@@ -232,7 +244,7 @@ module decoder
                 ctrl_o.alu_req.op_b_sel  = OP_B_IMM;
                 // Logic: Load Word from Memory
                 ctrl_o.lsu_req.width = MEM_WORD;
-                ctrl_o.lsu_req.is_unsigned = 1'b1;
+                ctrl_o.lsu_req.is_unsigned = 1'b0;
                 ctrl_o.lsu_req.re   = 1'b1;
             end
             // JALR : Jump and Link Register -> PC = Rs1 + Imm, Rd = PC + 4
@@ -573,7 +585,7 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RW;
                     ctrl_o.csr_req.is_imm = 1'b0;
-                    ctrl_o.csr_req.addr   = instr.i_type.imm; // Addr nằm ở Imm
+                    ctrl_o.csr_req.addr   = i_inst.imm; // Addr nằm ở Imm của i_inst
                 end
 
             // 2. CSR Read/Set (CSRRS) - Rd = CSR, CSR |= Rs1
@@ -585,7 +597,7 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RS;
                     ctrl_o.csr_req.is_imm = 1'b0;
-                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                    ctrl_o.csr_req.addr   = i_inst.imm;
                 end
 
             // 3. CSR Read/Clear (CSRRC) - Rd = CSR, CSR &= ~Rs1
@@ -597,7 +609,7 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RC;
                     ctrl_o.csr_req.is_imm = 1'b0;
-                    ctrl_o.csr_req.addr   = instr.i_type.imm;
+                    ctrl_o.csr_req.addr   = i_inst.imm;
                 end
 
             // 4. CSR Read/Write Immediate (CSRRWI) - Rd = CSR, CSR = Zimm
@@ -609,9 +621,9 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RW;
                     ctrl_o.csr_req.is_imm = 1'b1; // Dùng Immediate
-                    ctrl_o.csr_req.addr   = instr.i_type.imm;
-                    // Zimm 5-bit nằm ở vị trí rs1 (bit 19:15)
-                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1}; 
+                    ctrl_o.csr_req.addr   = i_inst.imm;
+                    // Zimm 5-bit nằm ở vị trí rs1 (bit 19:15) của i_inst
+                    ctrl_o.csr_req.wdata  = {27'b0, i_inst.rs1}; 
                 end
 
             // 5. CSR Read/Set Immediate (CSRRSI)
@@ -623,8 +635,8 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RS;
                     ctrl_o.csr_req.is_imm = 1'b1;
-                    ctrl_o.csr_req.addr   = instr.i_type.imm;
-                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1};
+                    ctrl_o.csr_req.addr   = i_inst.imm;
+                    ctrl_o.csr_req.wdata  = {27'b0, i_inst.rs1};
                 end
 
             // 6. CSR Read/Clear Immediate (CSRRCI)
@@ -636,8 +648,8 @@ module decoder
                     ctrl_o.csr_req.valid  = 1'b1;
                     ctrl_o.csr_req.op     = CSR_RC;
                     ctrl_o.csr_req.is_imm = 1'b1;
-                    ctrl_o.csr_req.addr   = instr.i_type.imm;
-                    ctrl_o.csr_req.wdata  = {27'b0, instr.i_type.rs1};
+                    ctrl_o.csr_req.addr   = i_inst.imm;
+                    ctrl_o.csr_req.wdata  = {27'b0, i_inst.rs1};
                 end
 
             // 7. SYSTEM TRAPS (MRET, ECALL, EBREAK)
@@ -659,14 +671,15 @@ module decoder
                 end
     endcase
     end 
+
 // 3. IMMEDIATE GENERATION
     always_comb begin
         unique case (ctrl_o.imm_type)
-            IMM_I: imm_o = {{20{instr.i_type.imm[11]}}, instr.i_type.imm};
-            IMM_S: imm_o = {{20{instr.s_type.imm_11_5[6]}}, instr.s_type.imm_11_5, instr.s_type.imm_4_0};
-            IMM_B: imm_o = {{19{instr.b_type.imm_12}}, instr.b_type.imm_12, instr.b_type.imm_11, instr.b_type.imm_10_5, instr.b_type.imm_4_1, 1'b0};
-            IMM_U: imm_o = {instr.u_type.imm_31_12, 12'b0};
-            IMM_J: imm_o = {{11{instr.j_type.imm_20}}, instr.j_type.imm_20, instr.j_type.imm_19_12, instr.j_type.imm_11, instr.j_type.imm_10_1, 1'b0};
+            IMM_I: imm_o = {{20{i_inst.imm[11]}}, i_inst.imm};
+            IMM_S: imm_o = {{20{s_inst.imm_11_5[6]}}, s_inst.imm_11_5, s_inst.imm_4_0};
+            IMM_B: imm_o = {{19{b_inst.imm_12}}, b_inst.imm_12, b_inst.imm_11, b_inst.imm_10_5, b_inst.imm_4_1, 1'b0};
+            IMM_U: imm_o = {u_inst.imm_31_12, 12'b0};
+            IMM_J: imm_o = {{11{j_inst.imm_20}}, j_inst.imm_20, j_inst.imm_19_12, j_inst.imm_11, j_inst.imm_10_1, 1'b0};
             IMM_Z: imm_o = 32'b0;
             default: imm_o = 32'b0;
         endcase

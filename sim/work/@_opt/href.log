@@ -1,0 +1,33 @@
+BEGIN 3:csr_if:fast__1:work
+    mret :  1:tb_csr_sv_unit:fast:work
+    epc :  1:tb_csr_sv_unit:fast:work
+    clk_i :  1:tb_csr_sv_unit:fast:work
+    ready :  1:tb_csr_sv_unit:fast:work
+    rst_i :  1:tb_csr_sv_unit:fast:work
+    irq_sw :  1:tb_csr_sv_unit:fast:work
+    trap_vector :  1:tb_csr_sv_unit:fast:work
+    trap_cause :  1:tb_csr_sv_unit:fast:work
+    rdata :  1:tb_csr_sv_unit:fast:work
+    req :  1:tb_csr_sv_unit:fast:work
+    irq_timer :  1:tb_csr_sv_unit:fast:work
+    trap_valid :  1:tb_csr_sv_unit:fast:work
+    trap_pc :  1:tb_csr_sv_unit:fast:work
+    rsp_valid :  1:tb_csr_sv_unit:fast:work
+    irq_ext :  1:tb_csr_sv_unit:fast:work
+END 
+BEGIN 3:csr_if:fast__2:work
+    req :  1:tb_csr_top:fast:work
+    epc :  1:tb_csr_top:fast:work
+    rdata :  1:tb_csr_top:fast:work
+    irq_sw :  1:tb_csr_top:fast:work
+    trap_valid :  1:tb_csr_top:fast:work
+    irq_ext :  1:tb_csr_top:fast:work
+    trap_pc :  1:tb_csr_top:fast:work
+    mret :  1:tb_csr_top:fast:work
+    ready :  1:tb_csr_top:fast:work
+    trap_vector :  1:tb_csr_top:fast:work
+    rsp_valid :  1:tb_csr_top:fast:work
+    irq_timer :  1:tb_csr_top:fast:work
+    trap_cause :  1:tb_csr_top:fast:work
+    trap_val :  1:tb_csr_top:fast:work
+END 

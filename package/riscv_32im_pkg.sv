@@ -8,7 +8,7 @@ package riscv_32im_pkg;
     parameter logic [31:0] BOOT_ADDR = 32'h0000_0000; // address boot PC
 
     // --- Default HEX Files (Central config — tất cả module tham chiếu về đây) ---
-    parameter string IMEM_HEX_FILE = "../src/memory/program_io.hex";  // File mặc định cho IMEM
+    parameter string IMEM_HEX_FILE = "../src/memory/programv2.hex"; // File mặc định cho IMEM
     parameter string DMEM_HEX_FILE = "";                 // DMEM không load hex (init = 0)
 
 
@@ -28,6 +28,7 @@ package riscv_32im_pkg;
     // External SDRAM (0x6000_0000 - 0x6FFF_FFFF)
     localparam logic [31:0] MAP_SDRAM_BASE = 32'h6000_0000;
     localparam logic [31:0] MAP_SDRAM_MASK = 32'hF000_0000;
+
 
 // 2. ENUMERATIONS (DEFINITIONS)
     // --- ALU Operations ---
@@ -119,31 +120,16 @@ package riscv_32im_pkg;
         DEV_NONE  = 2'bxx // Trạng thái lỗi hoặc không chọn gì
     } dev_sel_t;
 
-    // --- Peripheral Addresses (Offsets) ---
-    typedef enum logic [15:0] {
-        ADDR_GPIO           = 16'h0000,
-        ADDR_SEGMENTS       = 16'h0001,
-        ADDR_UART           = 16'h0002,
-        ADDR_ADC            = 16'h0003,
-        ADDR_I2C            = 16'h0004,
-        ADDR_TIMER          = 16'h0005,
-        
-        ADDR_DIF_FIL        = 16'h0008,
-        ADDR_STEP_MOT       = 16'h0009,
-        ADDR_LCD            = 16'h000A,
-        ADDR_NN_ACCEL       = 16'h000B,
-        
-        ADDR_FIR_FIL        = 16'h000D,
-        ADDR_KEY            = 16'h000E,
-        ADDR_CRC            = 16'h000F,
-        
-        ADDR_SPWM           = 16'h0011,
-        ADDR_ACCEL          = 16'h0012,
-        ADDR_CORDIC         = 16'h0015,
-        ADDR_RS485          = 16'h0017,
-        ADDR_RGB            = 16'h0020,
-        
-        ADDR_UNKNOWN        = 16'hxxxx // Cho các trường hợp default
+    // --- Peripheral Page Addresses (Offsets within IO region, bits [19:0]) ---
+    // Mỗi ngoại vi chiếm 4 KB = 0x1000. Decode: addr[19:0] & 20'hFF000
+    typedef enum logic [19:0] {
+        ADDR_SW_LED  = 20'h00000, // 0x4000_0000 -> Read: SW[9:0], Write: LED[9:0]
+        ADDR_HEX     = 20'h01000, // 0x4000_1000 -> HEX[5:0] (+0,+4,...+20 = display 0..5)
+        ADDR_KEY     = 20'h02000, // 0x4000_2000 -> KEY[3:0] pushbuttons (active-low)
+        ADDR_UART    = 20'h03000, // 0x4000_3000 -> UART TX/RX/Status/Ctrl (via GPIO[1:0])
+        ADDR_GPIO    = 20'h04000, // 0x4000_4000 -> 20-pin GPIO (Data @ +0, Dir @ +4)
+
+        ADDR_UNKNOWN = 20'hFFFFF  // Tránh cảnh báo 'incomplete case' khi tổng hợp
     } periph_addr_t;
 
 // 3. STRUCT DEFINITIONS (DATA PAYLOADS)
@@ -208,7 +194,7 @@ package riscv_32im_pkg;
         logic [6:0]     opcode;
     } j_type_t;
     // UNION of all instruction types
-    typedef union packed {
+/*    typedef union packed {
         r_type_t    r_type;
         i_type_t    i_type;
         s_type_t    s_type;
@@ -216,7 +202,7 @@ package riscv_32im_pkg;
         u_type_t    u_type;
         j_type_t    j_type;
         logic [31:0] raw;
-    } instr_t;
+    } instr_t; */
 
     // --- Execution Requests ---
     

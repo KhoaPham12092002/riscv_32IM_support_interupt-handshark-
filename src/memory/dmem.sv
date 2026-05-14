@@ -8,7 +8,6 @@ import riscv_32im_pkg::*;
 //              Handshake: valid/ready protocol
 // =============================================================================
 module dmem #(
-    parameter string HEX_FILE = riscv_32im_pkg::DMEM_HEX_FILE,  // Mặc định từ package (rỗng)
     parameter int    MEM_SIZE = riscv_32im_pkg::DMEM_SIZE_BYTES
 ) (
     input  logic        clk_i,
@@ -33,13 +32,12 @@ module dmem #(
     // Mảng bộ nhớ chính
     logic [31:0] mem_array [0 : WORD_COUNT-1];
 
-    // Word address (bỏ 2 bit cuối vì word-aligned)
-    // Dùng full 32-bit shift (giống imem.sv) để tránh bit-slice aliasing
-    // khi full physical address (e.g. 0x2000_0004) được pass trực tiếp vào.
-    logic [31:0] word_addr_full;
-    assign word_addr_full = req_addr_i >> 2;
+    // Word index = bits[ADDR_W+1 : 2] của địa chỉ byte.
+    // KHÔNG dùng (req_addr_i >> 2) vì địa chỉ vật lý 0x2000_0000 >> 2 = 0x0800_0000
+    // sẽ vượt WORD_COUNT và trigger OOB guard sai. Routing trong soc_top_io đảm bảo
+    // chỉ địa chỉ 0x2000_xxxx tới đây, nên bits[ADDR_W+1:2] là đúng.
     logic [ADDR_W-1:0] word_addr;
-    assign word_addr = word_addr_full[ADDR_W-1:0];
+    assign word_addr = req_addr_i[ADDR_W+1 : 2];
 
     // ── Handshake Logic ──
     assign req_ready_o = ~rsp_valid_o || rsp_ready_i;
@@ -55,27 +53,20 @@ module dmem #(
             rsp_rdata_o <= 32'h0;
         end else begin
             if (req_fire) begin
-                rsp_valid_o <= 1'b1;
-                
                 if (req_we_i) begin
                     // ── STORE: Ghi theo Byte Enable ──
-                    if (word_addr_full < WORD_COUNT) begin
-                        if (req_be_i[0]) mem_array[word_addr][7:0]   <= req_wdata_i[7:0];
-                        if (req_be_i[1]) mem_array[word_addr][15:8]  <= req_wdata_i[15:8];
-                        if (req_be_i[2]) mem_array[word_addr][23:16] <= req_wdata_i[23:16];
-                        if (req_be_i[3]) mem_array[word_addr][31:24] <= req_wdata_i[31:24];
-                    end
-                    rsp_rdata_o <= 32'h0; // Store không cần data trả về
-                end 
+                    rsp_valid_o <= 1'b0; // Store không cần Response Phase
+                    if (req_be_i[0]) mem_array[word_addr][7:0]   <= req_wdata_i[7:0];
+                    if (req_be_i[1]) mem_array[word_addr][15:8]  <= req_wdata_i[15:8];
+                    if (req_be_i[2]) mem_array[word_addr][23:16] <= req_wdata_i[23:16];
+                    if (req_be_i[3]) mem_array[word_addr][31:24] <= req_wdata_i[31:24];
+                end
                 else begin
                     // ── LOAD: Đọc 1 word ──
-                    if (word_addr_full < WORD_COUNT) begin
-                        rsp_rdata_o <= mem_array[word_addr];
-                    end else begin
-                        rsp_rdata_o <= 32'h0; // Out-of-bounds → 0
-                    end
+                    rsp_valid_o <= 1'b1;
+                    rsp_rdata_o <= mem_array[word_addr];
                 end
-            end 
+            end
             else if (rsp_ready_i) begin
                 rsp_valid_o <= 1'b0; // Stage sau đã nhận → xả cờ
             end
@@ -85,7 +76,5 @@ module dmem #(
     // ── Initial Load ──
     initial begin
         for (int i = 0; i < WORD_COUNT; i++) mem_array[i] = 32'h0;
-        if (HEX_FILE != "") $readmemh(HEX_FILE, mem_array);
-    end
-
+		  end
 endmodule

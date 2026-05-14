@@ -1,0 +1,88 @@
+`timescale 1ns/1ps
+
+module fpga_wrapper (
+    // ── Clock & Reset ──────────────────────────────────────────────
+    input  logic        CLOCK_50,    // 50 MHz clock
+    input  logic [3:0]  KEY,         // Nút nhấn (Active Low)
+    
+    // ── Switches & LEDs ────────────────────────────────────────────
+    input  logic [9:0]  SW,          // Switches
+    output logic [9:0]  LEDR,        // Red LEDs
+    
+    // ── 7-Segment Displays (Tạm tắt do SoC chưa hỗ trợ) ─────────────
+    output logic [6:0]  HEX0,
+    output logic [6:0]  HEX1,
+    output logic [6:0]  HEX2,
+    output logic [6:0]  HEX3,
+    output logic [6:0]  HEX4,
+    output logic [6:0]  HEX5
+    
+    // ── Ghi chú: Bạn cần map các chân này vào file QSF ─────────────
+    // input  logic       UART_RX,     // UART RX (Từ PC)
+    // output logic       UART_TX,     // UART TX (Tới PC)
+    // output logic [7:0] LCD_DATA,    // LCD Data bus
+    // output logic       LCD_EN,      // LCD Enable
+    // output logic       LCD_RS,      // LCD Register Select
+    // output logic       LCD_RW,      // LCD Read/Write
+    // output logic       LCD_ON       // LCD Backlight
+);
+
+    // =========================================================================
+    // 1. TÍN HIỆU CƠ BẢN
+    // =========================================================================
+    
+    // KEY thường là Active-low, nhưng soc_top_io yêu cầu Active-high reset
+    logic rst_i;
+    assign rst_i = ~KEY[0];
+    
+    // Tắt các LED 7 đoạn (7'h7F là mức tắt đối với Common Anode tích cực thấp)
+    assign HEX0 = 7'h7F;
+    assign HEX1 = 7'h7F;
+    assign HEX2 = 7'h7F;
+    assign HEX3 = 7'h7F;
+    assign HEX4 = 7'h7F;
+    assign HEX5 = 7'h7F;
+
+    // =========================================================================
+    // 2. TÍN HIỆU GIẢ LẬP (Cho các chân chưa được map trong QSF)
+    // Nếu bạn nối UART và LCD vật lý, hãy XÓA các dòng assign này và
+    // đưa các tín hiệu UART/LCD lên port của module fpga_wrapper.
+    // =========================================================================
+    logic       uart_rx_i = 1'b1;  // Kéo lên mức cao (Trạng thái Idle của UART)
+    logic       uart_tx_o;
+    logic [7:0] lcd_data_o;
+    logic       lcd_en_o;
+    logic       lcd_rs_o;
+    logic       lcd_rw_o;
+    logic       lcd_on_o;
+
+    // =========================================================================
+    // 3. INSTANTIATE RISC-V SoC TOP
+    // =========================================================================
+    soc_top_io #(
+        .IMEM_HEX  ("imem.hex"), // Thay bằng đường dẫn file hex của bạn
+        .IMEM_SZ   (8192),       // Thay đổi kích thước theo cấu hình thật
+        .DMEM_SZ   (8192),
+        .CLK_FREQ  (50_000_000), // 50MHz từ CLOCK_50
+        .BAUD_RATE (115200)
+    ) u_soc_top (
+        .clk_i      (CLOCK_50),
+        .rst_i      (rst_i),
+        
+        // GPIO
+        .sw_i       (SW),
+        .led_o      (LEDR),
+        
+        // UART
+        .uart_rx_i  (uart_rx_i),
+        .uart_tx_o  (uart_tx_o),
+        
+        // LCD
+        .lcd_data_o (lcd_data_o),
+        .lcd_en_o   (lcd_en_o),
+        .lcd_rs_o   (lcd_rs_o),
+        .lcd_rw_o   (lcd_rw_o),
+        .lcd_on_o   (lcd_on_o)
+    );
+
+endmodule

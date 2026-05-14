@@ -1,23 +1,23 @@
 import riscv_32im_pkg::*;
-module pipeline_reg #(parameter type T_DATA = logic [31:0] )
-(
-    input  logic    clk_i,
-    input  logic    rst_i,
+module pipeline_reg #(
+    parameter int WIDTH = 32 // Dùng tham số số nguyên thay vì type
+)(
+    input  logic             clk_i,
+    input  logic             rst_i,
 
     // --- Control Interface ---
-    input  logic    flush_i,      // Xóa pipeline khi Branch sai (Synchronous Reset)
+    input  logic             flush_i,      
     
     // --- Upstream (Input) ---
-    input  logic    valid_i,      // Data đầu vào hợp lệ
-    output logic    ready_o,      // Báo cho tầng trước: Tao sẵn sàng
-    input  T_DATA   data_i,       // Dữ liệu đầu vào
+    input  logic             valid_i,      
+    output logic             ready_o,      
+    input  logic [WIDTH-1:0] data_i,       // Ép kiểu vector dựa trên WIDTH
 
     // --- Downstream (Output) ---
-    output logic    valid_o,      // Data đầu ra hợp lệ
-    input  logic    ready_i,      // Tầng sau báo: Tao sẵn sàng nhận
-    output T_DATA   data_o        // Dữ liệu đầu ra
+    output logic             valid_o,      
+    input  logic             ready_i,      
+    output logic [WIDTH-1:0] data_o        
 );
-
     // Trạng thái của thanh ghi: Full (có dữ liệu) hoặc Empty
     logic full_q; 
 

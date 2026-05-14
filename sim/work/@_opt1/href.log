@@ -1,0 +1,31 @@
+BEGIN 1:riscv_datapath:fast:work
+    ex_alu_result :  1:tb_soc_io:fast:work
+    mem_wb_out :  1:tb_soc_io:fast:work
+    id_ex_valid :  1:tb_soc_io:fast:work
+    ctrl_fwd_rs1_sel_i :  1:tb_soc_io:fast:work
+    mem_fwd_val :  1:tb_soc_io:fast:work
+    mem_wb_valid :  1:tb_soc_io:fast:work
+    ex_mem_ready :  1:tb_soc_io:fast:work
+    rf_wdata :  1:tb_soc_io:fast:work
+    id_ex_out :  1:tb_soc_io:fast:work
+    ex_rs1_fwd_data :  1:tb_soc_io:fast:work
+END 
+BEGIN 1:lsu:fast:work
+    funct3_q :  1:tb_soc_io:fast:work
+    state :  1:tb_soc_io:fast:work
+    addr_q :  1:tb_soc_io:fast:work
+    lsu_rdata_o :  1:tb_soc_io:fast:work
+    we_q :  1:tb_soc_io:fast:work
+    dmem_rdata_q :  1:tb_soc_io:fast:work
+END 
+BEGIN 1:soc_top_io:fast:work
+    cs_uart :  1:tb_soc_io:fast:work
+    io_req_valid :  1:tb_soc_io:fast:work
+    io_we :  1:tb_soc_io:fast:work
+    cs_sw_led :  1:tb_soc_io:fast:work
+    cs_key :  1:tb_soc_io:fast:work
+    cs_gpio :  1:tb_soc_io:fast:work
+    dmem_addr :  1:tb_soc_io:fast:work
+    dmem_wdata :  1:tb_soc_io:fast:work
+    cs_hex :  1:tb_soc_io:fast:work
+END 

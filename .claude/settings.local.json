@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(taskkill *)"
+      "PowerShell(taskkill *)",
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(rtk ls *)",
+      "Bash(claude plugin *)",
+      "Bash(rtk find *)",
+      "Bash(rtk grep *)",
+      "Bash(awk 'NR>=1 && NR<=5')",
+      "Bash(vsim -c -do run_soc_io.do)",
+      "Bash(rtk read *)",
+      "Bash(vsim -c -do run_uart_modes.do)"
     ]
+  },
+  "skillOverrides": {
+    "gemini_skill": "off",
+    "thesis-debate": "off"
   }
 }

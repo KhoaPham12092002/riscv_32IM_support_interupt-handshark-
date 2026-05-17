@@ -28,16 +28,16 @@ Disassembly of section .text:
   50:	006f0423          	sb	t1,8(t5)
   54:	09000313          	li	t1,144
   58:	006f04a3          	sb	t1,9(t5)
-  5c:	fff00e13          	li	t3,-1
+  5c:	40000fb7          	lui	t6,0x40000
+  60:	fff00e13          	li	t3,-1
 
-00000060 <main_loop>:
-  60:	400022b7          	lui	t0,0x40002
-  64:	0002a303          	lw	t1,0(t0) # 40002000 <KEY_BASE>
-  68:	00137313          	andi	t1,t1,1
-  6c:	f8030ae3          	beqz	t1,0 <_start>
-  70:	400002b7          	lui	t0,0x40000
-  74:	0002a303          	lw	t1,0(t0) # 40000000 <SW_LED_BASE>
-  78:	0062a023          	sw	t1,0(t0)
+00000064 <main_loop>:
+  64:	400022b7          	lui	t0,0x40002
+  68:	0002a303          	lw	t1,0(t0) # 40002000 <KEY_BASE>
+  6c:	00137313          	andi	t1,t1,1
+  70:	f80308e3          	beqz	t1,0 <_start>
+  74:	000fa303          	lw	t1,0(t6) # 40000000 <SW_LED_BASE>
+  78:	006fa023          	sw	t1,0(t6)
   7c:	00337413          	andi	s0,t1,3
   80:	00235493          	srli	s1,t1,0x2
   84:	0ff4f493          	andi	s1,s1,255
@@ -47,7 +47,7 @@ Disassembly of section .text:
   94:	06740263          	beq	s0,t2,f8 <mode_01>
   98:	00200393          	li	t2,2
   9c:	0a740a63          	beq	s0,t2,150 <mode_10>
-  a0:	fc1ff06f          	j	60 <main_loop>
+  a0:	fc5ff06f          	j	64 <main_loop>
 
 000000a4 <mode_00>:
   a4:	02948533          	mul	a0,s1,s1
@@ -78,7 +78,7 @@ Disassembly of section .text:
   f0:	ff1ff06f          	j	e0 <blank_loop>
 
 000000f4 <mode_00_done>:
-  f4:	f6dff06f          	j	60 <main_loop>
+  f4:	f71ff06f          	j	64 <main_loop>
 
 000000f8 <mode_01>:
   f8:	03c48463          	beq	s1,t3,120 <mode_01_done>
@@ -93,7 +93,7 @@ Disassembly of section .text:
  11c:	01c000ef          	jal	ra,138 <tx_char>
 
 00000120 <mode_01_done>:
- 120:	f41ff06f          	j	60 <main_loop>
+ 120:	f45ff06f          	j	64 <main_loop>
 
 00000124 <tx_hex_char>:
  124:	00a00393          	li	t2,10
@@ -129,4 +129,4 @@ Disassembly of section .text:
  174:	00a2a023          	sw	a0,0(t0)
 
 00000178 <mode_10_done>:
- 178:	ee9ff06f          	j	60 <main_loop>
+ 178:	eedff06f          	j	64 <main_loop>

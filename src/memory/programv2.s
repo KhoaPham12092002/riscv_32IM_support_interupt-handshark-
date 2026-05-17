@@ -30,6 +30,7 @@
 #   x2  (sp)  = Stack Pointer
 #   x28 (t3)  = prev_sw_val (anti-spam Mode 01)
 #   x30 (t5)  = hex_map DMEM base (0x2000_0000, set once in _init)
+#   x31 (t6)  = SW_LED_BASE   (0x4000_0000, set once in _init)
 # ==============================================================================
 
 .equ SW_LED_BASE,  0x40000000
@@ -86,6 +87,9 @@ _init:
     li   x6,  0x90
     sb   x6,  9(x30)
 
+    # ── SW_LED_BASE cố định (tránh forwarding gap khi x5 bị overwrite bởi KEY_BASE) ──
+    li   x31, SW_LED_BASE        # x31 = SW_LED_BASE (giữ cố định, không tái dùng)
+
     # ── Giá trị prev_sw (anti-spam Mode 01) ──────────────────────────────────
     li   x28, -1                 # x28 = 0xFFFFFFFF, lần đầu luôn gửi UART
 
@@ -105,10 +109,11 @@ main_loop:
 
     # ------------------------------------------------------------------
     # [B] SW → LED (mirror trạng thái switch)
+    #     Dùng x31 (SW_LED_BASE cố định) thay vì li x5 để tránh
+    #     forwarding gap khi x5 còn giữ KEY_BASE từ section [A].
     # ------------------------------------------------------------------
-    li   x5,  SW_LED_BASE
-    lw   x6,  0(x5)             # x6 = SW[9:0]
-    sw   x6,  0(x5)             # LED = SW
+    lw   x6,  0(x31)            # x6 = SW[9:0]
+    sw   x6,  0(x31)            # LED = SW
 
     # ------------------------------------------------------------------
     # [C] TÁCH DỮ LIỆU: SW[1:0]=MODE, SW[9:2]=VALUE
